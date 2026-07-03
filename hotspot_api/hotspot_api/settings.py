@@ -72,7 +72,7 @@ DATABASES = {
         'ENGINE': 'django.db.backends.mysql',
         'NAME': 'hotspot_db',
         'USER': 'root',
-        'PASSWORD': 'chaiguoji9',
+        'PASSWORD': '123456',
         'HOST': 'localhost',
         'PORT': '3306',
         'OPTIONS': {
@@ -80,6 +80,14 @@ DATABASES = {
         },
     }
 }
+
+# —— 本地配置覆盖（每个人的数据库密码等敏感信息）
+# 复制 local_settings.example.py → local_settings.py 并修改自己的配置
+# local_settings.py 已在 .gitignore 中，不会被提交
+try:
+    from .local_settings import *  # noqa: F403
+except ImportError:
+    pass
 
 
 AUTH_PASSWORD_VALIDATORS = [

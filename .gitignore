@@ -25,3 +25,6 @@ env/
 # OS
 .DS_Store
 Thumbs.db
+
+# API Documentation
+**/api_docs.md

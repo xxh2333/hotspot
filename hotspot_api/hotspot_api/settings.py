@@ -28,7 +28,10 @@ INSTALLED_APPS = [
     'rest_framework_simplejwt',
     'corsheaders',
     
+    'apps.common',
+    'apps.users',
     'apps.logs',
+    'apps.trend_chart',
 ]
 
 MIDDLEWARE = [
@@ -68,7 +71,7 @@ DATABASES = {
         'ENGINE': 'django.db.backends.mysql',
         'NAME': 'hotspot_db',
         'USER': 'root',
-        'PASSWORD': '061218',
+        'PASSWORD': '123456',
         'HOST': 'localhost',
         'PORT': '3306',
         'OPTIONS': {
@@ -101,6 +104,7 @@ REST_FRAMEWORK = {
     'DEFAULT_PERMISSION_CLASSES': (
         'rest_framework.permissions.IsAuthenticated',
     ),
+    'EXCEPTION_HANDLER': 'apps.common.response.custom_exception_handler',
     'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.PageNumberPagination',
     'PAGE_SIZE': 10,
 }
@@ -151,6 +155,9 @@ MEDIA_URL = '/media/'
 MEDIA_ROOT = BASE_DIR / 'media'
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+
+AUTH_USER_MODEL = 'users.User'
+
 
 MQTT_CONFIG = {
     'HOST': 'broker.emqx.io',

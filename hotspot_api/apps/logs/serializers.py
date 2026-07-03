@@ -1,8 +1,14 @@
 from rest_framework import serializers
+
 from django.contrib.auth import get_user_model
+
 from .models import OperationLog, MaintenanceLog, AlarmLog
 
 User = get_user_model()
+
+DATETIME_FORMAT = '%Y-%m-%d %H:%M:%S'
+DATE_FORMAT = '%Y-%m-%d'
+TIME_FORMAT = '%H:%M:%S'
 
 
 class OperationLogSerializer(serializers.ModelSerializer):
@@ -10,6 +16,7 @@ class OperationLogSerializer(serializers.ModelSerializer):
     人员操作日志序列化器
     """
     operator_name = serializers.SerializerMethodField(read_only=True)
+    created_at = serializers.DateTimeField(format=DATETIME_FORMAT, read_only=True)
 
     class Meta:
         model = OperationLog
@@ -21,7 +28,7 @@ class OperationLogSerializer(serializers.ModelSerializer):
         """
         try:
             user = User.objects.get(id=obj.user_id)
-            return user.nickname or user.username
+            return user.username
         except User.DoesNotExist:
             return '未知用户'
 
@@ -43,15 +50,15 @@ class MaintenanceLogSerializer(serializers.ModelSerializer):
 
     def get_fault_date(self, obj):
         """
-        获取 created_at 的日期部分
+        获取 created_at 的日期部分，格式 YYYY-MM-DD
         """
-        return obj.created_at.date() if obj.created_at else None
+        return obj.created_at.strftime(DATE_FORMAT) if obj.created_at else None
 
     def get_fault_time(self, obj):
         """
-        获取 created_at 的时间部分
+        获取 created_at 的时间部分，格式 HH:MM:SS
         """
-        return obj.created_at.time() if obj.created_at else None
+        return obj.created_at.strftime(TIME_FORMAT) if obj.created_at else None
 
     def get_device_code(self, obj):
         """
@@ -69,6 +76,6 @@ class MaintenanceLogSerializer(serializers.ModelSerializer):
         """
         try:
             user = User.objects.get(id=obj.user_id)
-            return user.nickname or user.username
+            return user.username
         except User.DoesNotExist:
             return '未知用户'

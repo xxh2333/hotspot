@@ -1,5 +1,6 @@
 from rest_framework.views import APIView
 from rest_framework.permissions import IsAuthenticated
+
 from apps.common.response import Result
 from .services import LogService
 from .serializers import OperationLogSerializer, MaintenanceLogSerializer
@@ -25,15 +26,12 @@ class OperationLogListView(APIView):
             - branch: 支路编号
             - operator_name: 操作人姓名（模糊匹配）
         """
-        # 调用 Service 获取数据
         data = LogService.get_operation_logs(request, request.user)
 
-        # 序列化结果数据
         serializer = OperationLogSerializer(data['results'], many=True)
         data['results'] = serializer.data
 
-        # 返回统一响应格式
-        return Result.success(data=data)
+        return Result.success(data=data, trace_id=getattr(request, 'trace_id', ''))
 
 
 class MaintenanceLogListView(APIView):
@@ -55,12 +53,9 @@ class MaintenanceLogListView(APIView):
             - fault_device: 故障设备类型
             - device_code: 支路编号
         """
-        # 调用 Service 获取数据
         data = LogService.get_maintenance_logs(request, request.user)
 
-        # 序列化结果数据
         serializer = MaintenanceLogSerializer(data['results'], many=True)
         data['results'] = serializer.data
 
-        # 返回统一响应格式
-        return Result.success(data=data)
+        return Result.success(data=data, trace_id=getattr(request, 'trace_id', ''))

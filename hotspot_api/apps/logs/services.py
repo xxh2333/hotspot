@@ -1,5 +1,4 @@
 from django.core.paginator import Paginator
-from django.db.models import Q
 from django.contrib.auth import get_user_model
 from .models import OperationLog, MaintenanceLog, AlarmLog
 
@@ -12,7 +11,7 @@ class LogService:
     """
 
     @staticmethod
-    def get_operation_logs(request, user):
+    def get_operation_logs(request, user) -> dict:
         """
         获取人员操作日志列表
 
@@ -23,7 +22,6 @@ class LogService:
         Returns:
             dict: 包含分页数据的字典
         """
-        # 获取查询参数
         page = int(request.GET.get('page', 1))
         limit = int(request.GET.get('limit', 10))
         start_time = request.GET.get('start_time')
@@ -32,14 +30,12 @@ class LogService:
         branch = request.GET.get('branch')
         operator_name = request.GET.get('operator_name')
 
-        # 构建查询集
         queryset = OperationLog.objects.all()
 
         # 权限隔离：非管理员只能查看自己的操作日志
         if not user.is_superuser:
             queryset = queryset.filter(user_id=user.id)
 
-        # 应用筛选条件
         if start_time:
             queryset = queryset.filter(created_at__gte=start_time)
         if end_time:
@@ -51,18 +47,15 @@ class LogService:
         if operator_name:
             # 模糊匹配用户名
             user_ids = User.objects.filter(
-                Q(username__icontains=operator_name) | Q(nickname__icontains=operator_name)
+                username__icontains=operator_name
             ).values_list('id', flat=True)
             queryset = queryset.filter(user_id__in=user_ids)
 
-        # 按 created_at 降序排列
         queryset = queryset.order_by('-created_at')
 
-        # 分页
         paginator = Paginator(queryset, limit)
         page_obj = paginator.get_page(page)
 
-        # 返回分页数据
         return {
             'count': paginator.count,
             'next': page_obj.next_page_number() if page_obj.has_next() else None,
@@ -73,7 +66,7 @@ class LogService:
         }
 
     @staticmethod
-    def get_maintenance_logs(request, user):
+    def get_maintenance_logs(request, user) -> dict:
         """
         获取故障处置日志列表
 
@@ -84,7 +77,6 @@ class LogService:
         Returns:
             dict: 包含分页数据的字典
         """
-        # 获取查询参数
         page = int(request.GET.get('page', 1))
         limit = int(request.GET.get('limit', 10))
         start_time = request.GET.get('start_time')
@@ -92,33 +84,28 @@ class LogService:
         fault_device = request.GET.get('fault_device')
         device_code = request.GET.get('device_code')
 
-        # 构建查询集
         queryset = MaintenanceLog.objects.all()
 
         # 权限隔离：非管理员只能查看自己的维修日志
         if not user.is_superuser:
             queryset = queryset.filter(user_id=user.id)
 
-        # 应用筛选条件
         if start_time:
             queryset = queryset.filter(created_at__gte=start_time)
         if end_time:
             queryset = queryset.filter(created_at__lte=end_time)
         if fault_device:
-            queryset = queryset.filter(fault_device__icontains=fault_device)
+            queryset = queryset.filter(fault_device=fault_device)
         if device_code:
             # 通过关联告警的 branch 筛选
             alarm_ids = AlarmLog.objects.filter(branch=device_code).values_list('id', flat=True)
             queryset = queryset.filter(alarm_id__in=alarm_ids)
 
-        # 按 created_at 降序排列
         queryset = queryset.order_by('-created_at')
 
-        # 分页
         paginator = Paginator(queryset, limit)
         page_obj = paginator.get_page(page)
 
-        # 返回分页数据
         return {
             'count': paginator.count,
             'next': page_obj.next_page_number() if page_obj.has_next() else None,

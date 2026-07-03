@@ -31,6 +31,7 @@ class OperationLog(models.Model):
         indexes = [
             models.Index(fields=['user_id']),
             models.Index(fields=['-created_at']),
+            models.Index(fields=['user_id', 'created_at']),
         ]
     
     def __str__(self):
@@ -56,6 +57,8 @@ class MaintenanceLog(models.Model):
         indexes = [
             models.Index(fields=['alarm_id']),
             models.Index(fields=['user_id']),
+            models.Index(fields=['-created_at']),
+            models.Index(fields=['alarm_id', 'created_at']),
         ]
     
     def __str__(self):

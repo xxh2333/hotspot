@@ -30,6 +30,7 @@ INSTALLED_APPS = [
     
     'apps.users',
     'apps.logs',
+    'apps.devices',
 ]
 
 MIDDLEWARE = [
@@ -68,7 +69,7 @@ DATABASES = {
         'ENGINE': 'django.db.backends.mysql',
         'NAME': 'hotspot_db',
         'USER': 'root',
-        'PASSWORD': '061218',
+        'PASSWORD': '123456',
         'HOST': 'localhost',
         'PORT': '3306',
         'OPTIONS': {
@@ -150,3 +151,21 @@ STATIC_URL = 'static/'
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 AUTH_USER_MODEL = 'users.User'
+
+
+MQTT_CONFIG = {
+    'HOST': 'broker.emqx.io',
+    'PORT': 1883,
+    'CLIENT_ID': 'django_backend',
+    'USERNAME': None,
+    'PASSWORD': None,
+    'KEEPALIVE': 60,
+    'CLEAN_SESSION': True,
+    
+    'TOPICS': {
+        'device_data': 'hotspot/device/data',
+        'device_control': 'hotspot/device/control',
+        'device_status': 'hotspot/device/status',
+        'alarm': 'hotspot/alarm',
+    },
+}

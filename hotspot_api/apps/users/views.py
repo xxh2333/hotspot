@@ -11,7 +11,6 @@ User = get_user_model()
 
 
 def _first_error(errors):
-    """提取 serializer.errors 中第一条错误消息"""
     for field, msgs in errors.items():
         for msg in msgs:
             return str(msg), getattr(msg, 'code', None)
@@ -19,41 +18,32 @@ def _first_error(errors):
 
 
 class LoginView(APIView):
-    """
-    用户登录
-    POST /api/auth/login
-
-    请求体：{"username": "...", "password": "..."}
-    """
+    """POST /api/auth/login"""
     permission_classes = [AllowAny]
 
     def post(self, request):
         serializer = LoginSerializer(data=request.data)
         if not serializer.is_valid():
             msg, _ = _first_error(serializer.errors)
-            return Result.error(40103, msg)
+            return Result.error(40103, msg, request=request)
 
         username = serializer.validated_data['username'].strip()
         password = serializer.validated_data['password']
 
-        # 40103 — 空值二次校验
         if not username or not password:
-            return Result.error(40103, '用户名和密码不能为空')
+            return Result.error(40103, '用户名和密码不能为空', request=request)
 
-        # 40102 — 账号禁用检查
         try:
             user = User.objects.get(username=username)
             if not user.is_active:
-                return Result.error(40102, '账号已被禁用')
+                return Result.error(40102, '账号已被禁用', request=request)
         except User.DoesNotExist:
-            pass  # 交给 authenticate 统一处理
+            pass
 
-        # 40101 — 凭据匹配
         user = authenticate(username=username, password=password)
         if user is None:
-            return Result.error(40101, '用户名或密码错误')
+            return Result.error(40101, '用户名或密码错误', request=request)
 
-        # 生成 JWT
         refresh = RefreshToken.for_user(user)
 
         return Result.success(
@@ -69,43 +59,33 @@ class LoginView(APIView):
                     'role_display': '管理员' if user.is_staff else '运维人员',
                 },
             },
+            request=request,
         )
 
 
 class UserMeView(APIView):
-    """
-    获取当前用户信息
-    GET /api/auth/me
-
-    JWT 认证由 DRF + 全局异常处理器保证，过期/无效 → 40104
-    """
+    """GET /api/auth/me"""
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
         serializer = UserInfoSerializer(request.user)
-        return Result.success(msg='获取成功', data=serializer.data)
+        return Result.success(msg='获取成功', data=serializer.data, request=request)
 
 
 class ChangePasswordView(APIView):
-    """
-    修改密码
-    POST /api/auth/change-password
-
-    请求体：{"old_password": "...", "new_password": "..."}
-    """
+    """POST /api/auth/change-password"""
     permission_classes = [IsAuthenticated]
 
     def post(self, request):
         serializer = ChangePasswordSerializer(data=request.data, context={'request': request})
         if not serializer.is_valid():
             msg, code = _first_error(serializer.errors)
-            # 优先使用序列化器中设置的业务错误码
             if code is not None:
-                return Result.error(int(code) if isinstance(code, str) else code, msg)
-            return Result.error(40103, msg)
+                return Result.error(int(code) if isinstance(code, str) else code, msg, request=request)
+            return Result.error(40103, msg, request=request)
 
         user = request.user
         user.set_password(serializer.validated_data['new_password'])
         user.save()
 
-        return Result.success(msg='密码修改成功，请使用新密码重新登录')
+        return Result.success(msg='密码修改成功，请使用新密码重新登录', request=request)

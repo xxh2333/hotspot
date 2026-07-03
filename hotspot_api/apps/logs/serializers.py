@@ -79,3 +79,29 @@ class MaintenanceLogSerializer(serializers.ModelSerializer):
             return user.username
         except User.DoesNotExist:
             return '未知用户'
+
+
+class CreateOperationLogSerializer(serializers.Serializer):
+    """
+    新增人员操作日志序列化器
+    """
+    branch = serializers.IntegerField(min_value=1, max_value=4, help_text='支路编号（1-4）')
+    action_type = serializers.ChoiceField(choices=OperationLog.ACTION_TYPE_CHOICES, help_text='操作类型')
+    is_success = serializers.BooleanField(help_text='操作是否成功')
+    action_detail = serializers.JSONField(required=False, default=dict, help_text='操作详情')
+
+    def validate_branch(self, value):
+        """验证支路编号范围为 1-4"""
+        if value < 1 or value > 4:
+            raise serializers.ValidationError('支路编号必须在 1-4 之间')
+        return value
+
+
+class CreateMaintenanceLogSerializer(serializers.Serializer):
+    """
+    新增故障处置日志序列化器
+    """
+    alarm_id = serializers.IntegerField(min_value=1, help_text='关联告警ID')
+    fault_device = serializers.CharField(max_length=50, required=False, allow_blank=True, default='', help_text='故障设备类型')
+    repair_detail = serializers.CharField(help_text='维修措施描述')
+    repair_images = serializers.JSONField(required=False, default=list, help_text='图片URL数组')

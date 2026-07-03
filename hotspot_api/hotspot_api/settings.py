@@ -32,6 +32,7 @@ INSTALLED_APPS = [
     'apps.users',
     'apps.logs',
     'apps.trend_chart',
+    'apps.history',
 ]
 
 MIDDLEWARE = [
@@ -70,8 +71,8 @@ DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.mysql',
         'NAME': 'hotspot_db',
-        'USER': '',
-        'PASSWORD': '',
+        'USER': 'root',
+        'PASSWORD': '123456',
         'HOST': 'localhost',
         'PORT': '3306',
         'OPTIONS': {

@@ -5,6 +5,8 @@ from .views import (
     MaintenanceLogListView,
     MaintenanceLogCreateView,
     ImageUploadView,
+    LogExportView,
+    LogStatisticsView,
 )
 
 urlpatterns = [
@@ -13,4 +15,6 @@ urlpatterns = [
     path('fault', MaintenanceLogListView.as_view(), name='maintenance_log_list'),
     path('fault/create', MaintenanceLogCreateView.as_view(), name='maintenance_log_create'),
     path('upload-image', ImageUploadView.as_view(), name='image_upload'),
+    path('export/excel', LogExportView.as_view(), name='log_export_excel'),
+    path('statistics', LogStatisticsView.as_view(), name='log_statistics'),
 ]

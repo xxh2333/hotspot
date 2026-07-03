@@ -136,3 +136,54 @@ class ImageUploadView(APIView):
             return Result.success(msg='图片上传成功', data=data, trace_id=getattr(request, 'trace_id', ''))
         except ValueError as e:
             return Result.error(code=400, msg=str(e), trace_id=getattr(request, 'trace_id', ''))
+
+
+class LogExportView(APIView):
+    """
+    日志导出 Excel 接口
+    GET /api/log/export/excel
+    """
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        """
+        导出日志为 Excel 文件
+
+        Query Parameters:
+            - log_type: string, 必填, operation/fault
+            - start_time: string, 可选, YYYY-MM-DD HH:mm:ss
+            - end_time: string, 可选, YYYY-MM-DD HH:mm:ss
+        """
+        log_type = request.GET.get('log_type')
+        if log_type not in ('operation', 'fault'):
+            return Result.error(code=400, msg='log_type 必须为 operation 或 fault', trace_id=getattr(request, 'trace_id', ''))
+
+        start_time = request.GET.get('start_time')
+        end_time = request.GET.get('end_time')
+
+        try:
+            return LogService.export_logs_to_excel(request, request.user, log_type, start_time, end_time)
+        except ValueError as e:
+            return Result.error(code=400, msg=str(e), trace_id=getattr(request, 'trace_id', ''))
+
+
+class LogStatisticsView(APIView):
+    """
+    日志统计概览接口
+    GET /api/log/statistics
+    """
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        """
+        获取今日和本月的日志统计数据
+
+        Query Parameters:
+            - date: string, 可选, 统计日期 YYYY-MM-DD（默认今天）
+        """
+        date_str = request.GET.get('date')
+        try:
+            data = LogService.get_log_statistics(request, request.user, date_str)
+            return Result.success(data=data, trace_id=getattr(request, 'trace_id', ''))
+        except ValueError as e:
+            return Result.error(code=400, msg=str(e), trace_id=getattr(request, 'trace_id', ''))

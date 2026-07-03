@@ -11,7 +11,6 @@ def custom_exception_handler(exc, context):
     response = exception_handler(exc, context)
 
     if response is not None:
-        # 处理 JWT 认证失败 → 40104
         if response.status_code == status.HTTP_401_UNAUTHORIZED:
             detail = response.data.get('detail', '')
             if 'Authentication' in str(detail) or 'token' in str(detail).lower():
@@ -36,7 +35,6 @@ def custom_exception_handler(exc, context):
                 status=status.HTTP_401_UNAUTHORIZED,
             )
 
-        # 处理权限不足 → 403
         if response.status_code == status.HTTP_403_FORBIDDEN:
             return Response(
                 {
@@ -55,11 +53,23 @@ def custom_exception_handler(exc, context):
 class Result:
     """
     统一响应工具类
+    所有接口必须使用它返回数据
     格式：{"code": 0, "msg": "...", "data": {}, "success": true, "trace_id": "..."}
     """
 
     @staticmethod
     def success(msg='成功', data=None, trace_id=None):
+        """
+        成功响应
+
+        Args:
+            msg: 响应消息，默认为'成功'
+            data: 响应数据
+            trace_id: 追踪ID
+
+        Returns:
+            Response: Django REST Framework Response 对象
+        """
         return Response({
             'code': 0,
             'msg': msg,
@@ -70,6 +80,18 @@ class Result:
 
     @staticmethod
     def error(code, msg, data=None, trace_id=None):
+        """
+        错误响应
+
+        Args:
+            code: 错误代码
+            msg: 错误消息
+            data: 响应数据（可选）
+            trace_id: 追踪ID
+
+        Returns:
+            Response: Django REST Framework Response 对象
+        """
         return Response({
             'code': code,
             'msg': msg,

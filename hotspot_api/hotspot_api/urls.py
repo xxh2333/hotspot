@@ -11,6 +11,7 @@ urlpatterns = [
     path('api/auth/', include('apps.users.urls')),
     path('api/trend-chart/', include('apps.trend_chart.urls')),
     path('api/log/', include('apps.logs.urls')),
+    path('api/', include('apps.history.urls')),
 ]
 
 if settings.DEBUG:

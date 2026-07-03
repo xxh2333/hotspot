@@ -28,9 +28,7 @@ INSTALLED_APPS = [
     'rest_framework_simplejwt',
     'corsheaders',
     
-    'apps.users',
     'apps.logs',
-    'apps.devices',
 ]
 
 MIDDLEWARE = [
@@ -40,6 +38,7 @@ MIDDLEWARE = [
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
+    'apps.common.middleware.TraceIdMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]
@@ -69,7 +68,7 @@ DATABASES = {
         'ENGINE': 'django.db.backends.mysql',
         'NAME': 'hotspot_db',
         'USER': 'root',
-        'PASSWORD': '123456',
+        'PASSWORD': '061218',
         'HOST': 'localhost',
         'PORT': '3306',
         'OPTIONS': {
@@ -149,9 +148,6 @@ USE_TZ = True
 STATIC_URL = 'static/'
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
-
-AUTH_USER_MODEL = 'users.User'
-
 
 MQTT_CONFIG = {
     'HOST': 'broker.emqx.io',

@@ -3,7 +3,12 @@ from rest_framework.permissions import IsAuthenticated
 
 from apps.common.response import Result
 from .services import LogService
-from .serializers import OperationLogSerializer, MaintenanceLogSerializer
+from .serializers import (
+    OperationLogSerializer,
+    MaintenanceLogSerializer,
+    CreateOperationLogSerializer,
+    CreateMaintenanceLogSerializer,
+)
 
 
 class OperationLogListView(APIView):
@@ -34,6 +39,31 @@ class OperationLogListView(APIView):
         return Result.success(data=data, trace_id=getattr(request, 'trace_id', ''))
 
 
+class OperationLogCreateView(APIView):
+    """
+    新增人员操作日志接口
+    POST /api/log/operation/create
+    """
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        """
+        新增人员操作日志
+
+        请求体（JSON）:
+            - branch: integer, 必填, 支路编号（1-4）
+            - action_type: string, 必填, remote_control/threshold_update/repair_device
+            - is_success: boolean, 必填, true=正常 false=异常
+            - action_detail: object, 可选, 详情JSON
+        """
+        serializer = CreateOperationLogSerializer(data=request.data)
+        if not serializer.is_valid():
+            return Result.error(code=400, msg='参数校验失败', data=serializer.errors, trace_id=getattr(request, 'trace_id', ''))
+
+        data = LogService.create_operation_log(request, request.user, serializer.validated_data)
+        return Result.success(msg='操作日志创建成功', data=data, trace_id=getattr(request, 'trace_id', ''))
+
+
 class MaintenanceLogListView(APIView):
     """
     故障处置日志列表接口
@@ -59,3 +89,50 @@ class MaintenanceLogListView(APIView):
         data['results'] = serializer.data
 
         return Result.success(data=data, trace_id=getattr(request, 'trace_id', ''))
+
+
+class MaintenanceLogCreateView(APIView):
+    """
+    新增故障处置日志接口
+    POST /api/log/fault/create
+    """
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        """
+        新增故障处置日志
+
+        请求体（JSON）:
+            - alarm_id: integer, 必填, 关联告警ID
+            - fault_device: string, 可选, 故障设备类型
+            - repair_detail: string, 必填, 维修措施描述
+            - repair_images: array, 可选, 图片URL数组
+        """
+        serializer = CreateMaintenanceLogSerializer(data=request.data)
+        if not serializer.is_valid():
+            return Result.error(code=400, msg='参数校验失败', data=serializer.errors, trace_id=getattr(request, 'trace_id', ''))
+
+        data = LogService.create_maintenance_log(request, request.user, serializer.validated_data)
+        return Result.success(msg='处置日志创建成功', data=data, trace_id=getattr(request, 'trace_id', ''))
+
+
+class ImageUploadView(APIView):
+    """
+    通用图片上传接口
+    POST /api/log/upload-image
+    """
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        """
+        上传图片文件
+
+        请求体（multipart/form-data）:
+            - image: File, 必填, 图片文件(jpg/png/webp, ≤5MB)
+            - type: string, 可选, operation/maintenance（默认 maintenance）
+        """
+        try:
+            data = LogService.upload_image(request, request.user)
+            return Result.success(msg='图片上传成功', data=data, trace_id=getattr(request, 'trace_id', ''))
+        except ValueError as e:
+            return Result.error(code=400, msg=str(e), trace_id=getattr(request, 'trace_id', ''))

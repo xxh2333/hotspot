@@ -3,6 +3,11 @@
 *$py.class
 __pycache__/
 *.so
+.Python
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
 
 # Django
 *.log
@@ -10,18 +15,67 @@ local_settings.py
 db.sqlite3
 db.sqlite3-journal
 media/
+static/
+staticfiles/
+.env
+.env.*
+!env.example
 
 # Virtual environment
 venv/
 ENV/
 env/
+.env/
 
 # IDE
 .vscode/
 .idea/
 *.swp
 *.swo
+*.vim
+*.nbproject/
 
 # OS
 .DS_Store
 Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+*.tmp
+*.temp
+
+# Database
+*.sql
+*.sql.gz
+*.backup
+
+# Cache
+.cache/
+*.pyd
+*.dll
+
+# Logs
+logs/
+*.log
+django.log
+gunicorn.log
+
+# Testing
+.coverage
+htmlcov/
+.tox/
+.pytest_cache/
+.coverage.*
+
+# Build
+dist/
+build/
+*.spec
+
+# SSL
+*.pem
+*.key
+*.crt
+
+# Migration backup
+migrations/backup/

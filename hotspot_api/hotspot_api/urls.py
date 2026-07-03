@@ -19,4 +19,5 @@ urlpatterns = [
     ])),
     
     path('api/users/', include('apps.users.urls')),
+    path('api/devices/', include('apps.devices.urls')),
 ]

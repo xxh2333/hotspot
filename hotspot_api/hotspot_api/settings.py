@@ -31,7 +31,6 @@ INSTALLED_APPS = [
     'apps.common',
     'apps.users',
     'apps.logs',
-    'apps.devices',
     'apps.trend_chart',
 ]
 

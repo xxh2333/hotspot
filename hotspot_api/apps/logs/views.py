@@ -36,7 +36,7 @@ class OperationLogListView(APIView):
         serializer = OperationLogSerializer(data['results'], many=True)
         data['results'] = serializer.data
 
-        return Result.success(data=data, trace_id=getattr(request, 'trace_id', ''))
+        return Result.success(data=data, request=request)
 
 
 class OperationLogCreateView(APIView):
@@ -58,10 +58,10 @@ class OperationLogCreateView(APIView):
         """
         serializer = CreateOperationLogSerializer(data=request.data)
         if not serializer.is_valid():
-            return Result.error(code=400, msg='参数校验失败', data=serializer.errors, trace_id=getattr(request, 'trace_id', ''))
+            return Result.error(code=400, msg='参数校验失败', data=serializer.errors, request=request)
 
         data = LogService.create_operation_log(request, request.user, serializer.validated_data)
-        return Result.success(msg='操作日志创建成功', data=data, trace_id=getattr(request, 'trace_id', ''))
+        return Result.success(msg='操作日志创建成功', data=data, request=request)
 
 
 class MaintenanceLogListView(APIView):
@@ -88,7 +88,7 @@ class MaintenanceLogListView(APIView):
         serializer = MaintenanceLogSerializer(data['results'], many=True)
         data['results'] = serializer.data
 
-        return Result.success(data=data, trace_id=getattr(request, 'trace_id', ''))
+        return Result.success(data=data, request=request)
 
 
 class MaintenanceLogCreateView(APIView):
@@ -110,10 +110,10 @@ class MaintenanceLogCreateView(APIView):
         """
         serializer = CreateMaintenanceLogSerializer(data=request.data)
         if not serializer.is_valid():
-            return Result.error(code=400, msg='参数校验失败', data=serializer.errors, trace_id=getattr(request, 'trace_id', ''))
+            return Result.error(code=400, msg='参数校验失败', data=serializer.errors, request=request)
 
         data = LogService.create_maintenance_log(request, request.user, serializer.validated_data)
-        return Result.success(msg='处置日志创建成功', data=data, trace_id=getattr(request, 'trace_id', ''))
+        return Result.success(msg='处置日志创建成功', data=data, request=request)
 
 
 class ImageUploadView(APIView):
@@ -133,9 +133,9 @@ class ImageUploadView(APIView):
         """
         try:
             data = LogService.upload_image(request, request.user)
-            return Result.success(msg='图片上传成功', data=data, trace_id=getattr(request, 'trace_id', ''))
+            return Result.success(msg='图片上传成功', data=data, request=request)
         except ValueError as e:
-            return Result.error(code=400, msg=str(e), trace_id=getattr(request, 'trace_id', ''))
+            return Result.error(code=400, msg=str(e), request=request)
 
 
 class LogExportView(APIView):
@@ -156,7 +156,7 @@ class LogExportView(APIView):
         """
         log_type = request.GET.get('log_type')
         if log_type not in ('operation', 'fault'):
-            return Result.error(code=400, msg='log_type 必须为 operation 或 fault', trace_id=getattr(request, 'trace_id', ''))
+            return Result.error(code=400, msg='log_type 必须为 operation 或 fault', request=request)
 
         start_time = request.GET.get('start_time')
         end_time = request.GET.get('end_time')
@@ -164,7 +164,7 @@ class LogExportView(APIView):
         try:
             return LogService.export_logs_to_excel(request, request.user, log_type, start_time, end_time)
         except ValueError as e:
-            return Result.error(code=400, msg=str(e), trace_id=getattr(request, 'trace_id', ''))
+            return Result.error(code=400, msg=str(e), request=request)
 
 
 class LogStatisticsView(APIView):
@@ -184,6 +184,6 @@ class LogStatisticsView(APIView):
         date_str = request.GET.get('date')
         try:
             data = LogService.get_log_statistics(request, request.user, date_str)
-            return Result.success(data=data, trace_id=getattr(request, 'trace_id', ''))
+            return Result.success(data=data, request=request)
         except ValueError as e:
-            return Result.error(code=400, msg=str(e), trace_id=getattr(request, 'trace_id', ''))
+            return Result.error(code=400, msg=str(e), request=request)

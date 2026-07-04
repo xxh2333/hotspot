@@ -35,7 +35,7 @@ class Migration(migrations.Migration):
             name='MaintenanceLog',
             fields=[
                 ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
-                ('alarm_id', models.BigIntegerField(verbose_name='关联告警ID')),
+                ('alarm_id', models.BigIntegerField(blank=True, null=True, verbose_name='关联告警ID')),
                 ('user_id', models.BigIntegerField(verbose_name='维修人员ID')),
                 ('fault_device', models.CharField(blank=True, max_length=50, null=True, verbose_name='故障设备类型')),
                 ('repair_detail', models.TextField(verbose_name='维修措施描述')),

@@ -15,7 +15,7 @@ urlpatterns = [
     # 3.2 温度历史导出
     path('history/temperature/export/', temperature_export, name='history-temperature-export'),
     # 3.6 实时温度 SSE 推送
-    path('history/temperature/stream/', TemperatureStreamView.as_view(), name='history-temperature-stream'),
+    #path('history/temperature/stream/', TemperatureStreamView.as_view(), name='history-temperature-stream'),
     # 3.3 历史告警查询
     path('history/alarm/', alarm_list, name='history-alarm-list'),
     # 3.4 故障原图预签名URL

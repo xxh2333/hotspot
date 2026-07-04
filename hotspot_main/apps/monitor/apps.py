@@ -23,7 +23,9 @@ class MonitorConfig(AppConfig):
             # RUN_MAIN='true' 表示这是实际处理请求的子进程
             if os.environ.get('RUN_MAIN') == 'true':
                 self._init_defaults()
-                self._start_mqtt()
+                # 开发阶段可通过环境变量 ENABLE_MQTT=false 关闭 MQTT
+                if os.environ.get('ENABLE_MQTT', 'true').lower() != 'false':
+                    self._start_mqtt()
 
     @staticmethod
     def _init_defaults():

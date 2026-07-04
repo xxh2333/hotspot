@@ -45,19 +45,12 @@ class Migration(migrations.Migration):
                 'verbose_name': '温度日志',
                 'verbose_name_plural': '温度日志',
                 'db_table': 'temperature_logs',
+                'indexes': [
+                    models.Index(fields=['timestamp'], name='idx_temp_timestamp'),
+                    models.Index(fields=['branch'], name='idx_temp_branch'),
+                    models.Index(fields=['branch', 'timestamp'], name='idx_temp_branch_timestamp'),
+                ],
             },
-        ),
-        migrations.AddIndex(
-            model_name='temperaturelog',
-            index=models.Index(fields=['timestamp'], name='idx_temp_timestamp'),
-        ),
-        migrations.AddIndex(
-            model_name='temperaturelog',
-            index=models.Index(fields=['branch'], name='idx_temp_branch'),
-        ),
-        migrations.AddIndex(
-            model_name='temperaturelog',
-            index=models.Index(fields=['branch', 'timestamp'], name='idx_temp_branch_timestamp'),
         ),
         migrations.AddConstraint(
             model_name='temperaturelog',

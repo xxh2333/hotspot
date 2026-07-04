@@ -71,9 +71,7 @@ class LogService:
             'count': paginator.count,
             'next': page_obj.next_page_number() if page_obj.has_next() else None,
             'previous': page_obj.previous_page_number() if page_obj.has_previous() else None,
-            'results': list(page_obj.object_list.values(
-                'id', 'user_id', 'branch', 'action_type', 'is_success', 'action_detail', 'created_at'
-            ))
+            'results': list(page_obj.object_list)
         }
 
     @staticmethod
@@ -121,9 +119,7 @@ class LogService:
             'count': paginator.count,
             'next': page_obj.next_page_number() if page_obj.has_next() else None,
             'previous': page_obj.previous_page_number() if page_obj.has_previous() else None,
-            'results': list(page_obj.object_list.values(
-                'id', 'alarm_id', 'user_id', 'fault_device', 'repair_detail', 'repair_images', 'created_at'
-            ))
+            'results': list(page_obj.object_list)
         }
 
     @staticmethod
@@ -174,6 +170,8 @@ class LogService:
         maintenance_log = MaintenanceLog.objects.create(
             alarm_id=validated_data['alarm_id'],
             user_id=user.id,
+            fault_date=timezone.now().date(),
+            fault_time=timezone.now().time(),
             fault_device=validated_data.get('fault_device', ''),
             repair_detail=validated_data['repair_detail'],
             repair_images=validated_data.get('repair_images', []),

@@ -359,15 +359,15 @@ class DashboardStreamView(APIView):
         # 生成客户端 ID
         client_id = f'{user.id}-{uuid.uuid4().hex[:8]}'
 
-        # 创建 SSE 流式响应
+        # 创建 SSE 流式响应（yield bytes 避免 wsgiref 兼容性问题）
         response = StreamingHttpResponse(
             self._event_generator(client_id),
             content_type='text/event-stream',
+            status=200,
         )
         response['Cache-Control'] = 'no-cache'
         response['X-Accel-Buffering'] = 'no'
         response['Access-Control-Allow-Origin'] = '*'
-        response['Connection'] = 'keep-alive'
         return response
 
     def _event_generator(self, client_id: str):
@@ -375,7 +375,7 @@ class DashboardStreamView(APIView):
         SSE 事件生成器
         每个客户端拥有独立的消息队列，从 SSEManager 接收广播消息
         """
-        client_queue: queue.Queue = queue.Queue(maxsize=256)
+        client_queue = queue.Queue(maxsize=256)
         sse_manager.register(client_id, client_queue)
 
         try:
@@ -412,6 +412,6 @@ class DashboardStreamView(APIView):
             sse_manager.unregister(client_id)
 
     @staticmethod
-    def _format_sse(event: str, data: str) -> str:
-        """格式化 SSE 消息"""
-        return f'event: {event}\ndata: {data}\n\n'
+    def _format_sse(event: str, data: str) -> bytes:
+        """格式化 SSE 消息，直接返回 bytes（兼容 wsgiref）"""
+        return f'event: {event}\ndata: {data}\n\n'.encode('utf-8')

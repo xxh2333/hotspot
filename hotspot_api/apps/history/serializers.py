@@ -11,14 +11,27 @@ class TemperatureRecordSerializer(serializers.ModelSerializer):
     """温度历史记录序列化器（列表展示）"""
 
     timestamp = serializers.DateTimeField(format='%Y-%m-%dT%H:%M:%S.%f'[:-3], read_only=True)
+    status = serializers.SerializerMethodField(read_only=True)
+
+    # 异常判定阈值（与 views.HistoryTemperatureViewSet 保持一致）
+    ABNORMAL_TEMP_THRESHOLD = 80.0   # ℃
+    ABNORMAL_AREA_THRESHOLD = 10.0   # %
 
     class Meta:
         model = TemperatureRecord
         fields = [
             'id', 'branch', 'timestamp',
             'max_temp', 'min_temp', 'avg_temp',
-            'area_ratio', 'hotspot_count',
+            'area_ratio', 'hotspot_count', 'status',
         ]
+
+    def get_status(self, obj):
+        """根据阈值计算状态：正常 / 异常"""
+        max_temp = float(obj.max_temp)
+        area_ratio = float(obj.area_ratio)
+        if max_temp >= self.ABNORMAL_TEMP_THRESHOLD or area_ratio >= self.ABNORMAL_AREA_THRESHOLD:
+            return '异常'
+        return '正常'
 
 
 # ──────────────────────────────────────────────

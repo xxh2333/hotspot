@@ -6,7 +6,7 @@ from io import BytesIO
 
 from django.conf import settings
 from django.db import DatabaseError
-from django.http import StreamingHttpResponse
+from django.http import FileResponse
 from django.core.exceptions import ObjectDoesNotExist
 from rest_framework import viewsets, status
 from rest_framework.decorators import action
@@ -68,16 +68,16 @@ def _parse_iso_datetime(value: str) -> datetime:
 def _validate_time_range(start_time, end_time):
     """校验时间范围必填且有效，返回 (start_dt, end_dt) 或 Response"""
     if not start_time or not end_time:
-        return None, Result.error(code=400, msg='start_time 和 end_time 为必填参数')
+        return (None, None), Result.error(code=400, msg='start_time 和 end_time 为必填参数')
 
     try:
         start_dt = _parse_iso_datetime(start_time)
         end_dt = _parse_iso_datetime(end_time)
     except ValueError as e:
-        return None, Result.error(code=400, msg=str(e))
+        return (None, None), Result.error(code=400, msg=str(e))
 
     if start_dt >= end_dt:
-        return None, Result.error(code=400, msg='start_time 必须早于 end_time')
+        return (None, None), Result.error(code=400, msg='start_time 必须早于 end_time')
 
     return (start_dt, end_dt), None
 
@@ -282,16 +282,17 @@ class HistoryTemperatureViewSet(viewsets.GenericViewSet):
 
     @staticmethod
     def _stream_excel(workbook, filename):
-        """将 openpyxl Workbook 转为 StreamingHttpResponse"""
+        """将 openpyxl Workbook 转为 FileResponse（文件下载响应）"""
         buffer = BytesIO()
         workbook.save(buffer)
         buffer.seek(0)
 
-        response = StreamingHttpResponse(
+        response = FileResponse(
             buffer,
+            as_attachment=True,
+            filename=filename,
             content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
         )
-        response['Content-Disposition'] = f"attachment; filename*=UTF-8''{filename}"
         response['Content-Length'] = buffer.getbuffer().nbytes
         return response
 

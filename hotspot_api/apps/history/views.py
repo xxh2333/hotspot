@@ -17,6 +17,8 @@ from rest_framework.views import APIView
 from openpyxl import Workbook
 from openpyxl.styles import PatternFill, Font, Alignment, Border, Side
 
+from django.db.models import Q
+
 from apps.common.response import Result
 from apps.logs.models import MaintenanceLog
 from .models import TemperatureRecord, AlarmRecord
@@ -105,7 +107,7 @@ class HistoryTemperatureViewSet(viewsets.GenericViewSet):
     ABNORMAL_AREA_THRESHOLD = 10.0   # %
 
     def _build_temperature_queryset(self, start_dt, end_dt, branch=None,
-                                     min_temp=None, max_temp=None):
+                                     min_temp=None, max_temp=None, status=None):
         """构建温度查询过滤条件"""
         qs = TemperatureRecord.objects.filter(
             timestamp__gte=start_dt,
@@ -117,6 +119,12 @@ class HistoryTemperatureViewSet(viewsets.GenericViewSet):
             qs = qs.filter(max_temp__gte=min_temp)
         if max_temp is not None:
             qs = qs.filter(max_temp__lte=max_temp)
+        if status is not None:
+            abnormal_q = Q(max_temp__gte=self.ABNORMAL_TEMP_THRESHOLD) | Q(area_ratio__gte=self.ABNORMAL_AREA_THRESHOLD)
+            if status == 'abnormal':
+                qs = qs.filter(abnormal_q)
+            elif status == 'normal':
+                qs = qs.exclude(abnormal_q)
         return qs.order_by('-timestamp')
 
     # ──────────────────────────────────────────
@@ -126,7 +134,8 @@ class HistoryTemperatureViewSet(viewsets.GenericViewSet):
         """
         GET /api/history/temperature/
         必填: start_time, end_time
-        可选: branch, min_temp, max_temp, page, size
+        可选: branch, min_temp, max_temp, status, page, size
+        status: 正常 / 异常（筛选温度记录状态）
         """
         start_time = request.query_params.get('start_time')
         end_time = request.query_params.get('end_time')
@@ -156,8 +165,17 @@ class HistoryTemperatureViewSet(viewsets.GenericViewSet):
             except (TypeError, ValueError):
                 return Result.error(code=400, msg='max_temp 参数格式错误')
 
+        status = request.query_params.get('status')
+        if status is not None:
+            if status == '正常':
+                status = 'normal'
+            elif status == '异常':
+                status = 'abnormal'
+            else:
+                return Result.error(code=400, msg='status 参数无效，可选: 正常 / 异常')
+
         queryset = self._build_temperature_queryset(
-            start_dt, end_dt, branch, min_temp, max_temp,
+            start_dt, end_dt, branch, min_temp, max_temp, status,
         )
 
         page = self.paginate_queryset(queryset)

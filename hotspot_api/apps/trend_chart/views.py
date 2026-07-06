@@ -2,7 +2,7 @@ import json
 import time
 from datetime import datetime
 
-from django.http import StreamingHttpResponse
+from django.http import StreamingHttpResponse, JsonResponse
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.views import APIView
 
@@ -10,53 +10,55 @@ from apps.common.response import Result
 from .services import TrendChartService
 
 
-class TrendChartRealtimeView(APIView):
-    """
-    实时动态曲线接口（SSE 推送）
-    GET /api/trend-chart/realtime
-    """
-    permission_classes = [IsAuthenticated]
+def trend_chart_realtime(request):
+    auth_header = request.META.get('HTTP_AUTHORIZATION', '')
+    if not auth_header.startswith('Bearer '):
+        return JsonResponse({'code': 401, 'msg': '未授权', 'success': False}, status=401)
 
-    def get(self, request):
-        branch = request.GET.get('branch')
-        duration = min(int(request.GET.get('duration', 600)), 3600)
+    from rest_framework_simplejwt.tokens import AccessToken
+    try:
+        token = AccessToken(auth_header.split(' ')[1])
+    except Exception:
+        return JsonResponse({'code': 401, 'msg': 'Token无效', 'success': False}, status=401)
 
-        if branch is not None:
-            try:
-                branch = int(branch)
-                if branch < 1 or branch > 4:
-                    return Result.error(10001, '支路编号无效，应为 1~4', request=request)
-            except (TypeError, ValueError):
-                return Result.error(10001, '支路编号无效', request=request)
+    branch = request.GET.get('branch')
+    duration = min(int(request.GET.get('duration', 600)), 3600)
 
-        def event_stream():
-            init_data = TrendChartService.get_recent_logs(branch, duration)
-            yield f"event: init\ndata: {json.dumps(init_data, ensure_ascii=False)}\n\n"
+    if branch is not None:
+        try:
+            branch = int(branch)
+            if branch < 1 or branch > 4:
+                return JsonResponse({'code': 10001, 'msg': '支路编号无效，应为 1~4', 'success': False}, status=400)
+        except (TypeError, ValueError):
+            return JsonResponse({'code': 10001, 'msg': '支路编号无效', 'success': False}, status=400)
 
-            last_heartbeat = time.time()
-            last_update = time.time()
-            paused = False
+    def event_stream():
+        init_data = TrendChartService.get_recent_logs(branch, duration)
+        yield f"event: init\ndata: {json.dumps(init_data, ensure_ascii=False)}\n\n"
 
-            while True:
-                current = time.time()
+        last_heartbeat = time.time()
+        last_update = time.time()
 
-                if current - last_heartbeat >= 30:
-                    yield f"event: heartbeat\ndata: \"ping\"\n\n"
-                    last_heartbeat = current
+        while True:
+            current = time.time()
 
-                if not paused and current - last_update >= 5:
-                    latest = TrendChartService.get_latest_log(branch)
-                    if latest:
-                        yield f"event: update\ndata: {json.dumps(latest, ensure_ascii=False)}\n\n"
-                    last_update = current
+            if current - last_heartbeat >= 30:
+                yield f"event: heartbeat\ndata: \"ping\"\n\n"
+                last_heartbeat = current
 
-                time.sleep(1)
+            if current - last_update >= 5:
+                latest = TrendChartService.get_latest_log(branch)
+                if latest:
+                    yield f"event: update\ndata: {json.dumps(latest, ensure_ascii=False)}\n\n"
+                last_update = current
 
-        response = StreamingHttpResponse(event_stream(), content_type='text/event-stream')
-        response['Cache-Control'] = 'no-cache'
-        response['X-Accel-Buffering'] = 'no'
-        response['Access-Control-Allow-Origin'] = '*'
-        return response
+            time.sleep(1)
+
+    response = StreamingHttpResponse(event_stream(), content_type='text/event-stream')
+    response['Cache-Control'] = 'no-cache'
+    response['X-Accel-Buffering'] = 'no'
+    response['Access-Control-Allow-Origin'] = '*'
+    return response
 
 
 class TrendChartHistoryView(APIView):

@@ -120,10 +120,28 @@ class MQTTClient:
                 client.connect(self._broker_host, self._broker_port, self._keepalive)
                 self._client = client
 
-                # 阻塞循环，直到断开或停止
+                # 等待连接完成（必须调用 loop() 才能完成 MQTT 握手，
+                # _on_connect 回调会设置 self._connected = True）
+                wait_start = time.time()
+                while self._running and not self._connected and (time.time() - wait_start) < 10:
+                    client.loop(timeout=0.2)
+
+                if not self._connected:
+                    logger.warning(f'MQTT 连接超时（{self._broker_host}:{self._broker_port}），将重试...')
+                    try:
+                        client.disconnect()
+                    except Exception:
+                        pass
+                    time.sleep(5)
+                    continue
+
+                # 主循环：阻塞直到断开或停止
                 while self._running and self._connected:
                     client.loop(timeout=1.0)
 
+            except OSError as e:
+                logger.error(f'MQTT 网络错误: {e}，5秒后重连...')
+                self._connected = False
             except Exception as e:
                 logger.error(f'MQTT 连接异常: {e}，5秒后重连...')
                 self._connected = False

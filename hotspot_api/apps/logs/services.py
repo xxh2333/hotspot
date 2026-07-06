@@ -22,6 +22,37 @@ class LogService:
     """
 
     @staticmethod
+    def _safe_int(value, default):
+        """安全地将字符串转为 int，空值/空白/非法值返回 default"""
+        if value is None:
+            return default
+        value = str(value).strip()
+        if not value:
+            return default
+        try:
+            return int(value)
+        except (TypeError, ValueError):
+            return default
+
+    @staticmethod
+    def _safe_bool(value):
+        """安全地将字符串转为 bool，空值/空白返回 None"""
+        if value is None:
+            return None
+        value = str(value).strip()
+        if not value:
+            return None
+        return value.lower() in ('true', '1', 'yes')
+
+    @staticmethod
+    def _safe_str(value):
+        """安全地获取字符串参数，空值/空白返回 None"""
+        if value is None:
+            return None
+        value = str(value).strip()
+        return value if value else None
+
+    @staticmethod
     def get_operation_logs(request, user) -> dict:
         """
         获取人员操作日志列表
@@ -33,13 +64,14 @@ class LogService:
         Returns:
             dict: 包含分页数据的字典
         """
-        page = int(request.GET.get('page', 1))
-        limit = int(request.GET.get('limit', 10))
-        start_time = request.GET.get('start_time')
-        end_time = request.GET.get('end_time')
-        action_type = request.GET.get('action_type')
-        branch = request.GET.get('branch')
-        operator_name = request.GET.get('operator_name')
+        page = LogService._safe_int(request.GET.get('page'), 1)
+        limit = LogService._safe_int(request.GET.get('limit'), 10)
+        start_time = LogService._safe_str(request.GET.get('start_time'))
+        end_time = LogService._safe_str(request.GET.get('end_time'))
+        action_type = LogService._safe_str(request.GET.get('action_type'))
+        branch = LogService._safe_int(request.GET.get('branch'), None)
+        operator_name = LogService._safe_str(request.GET.get('operator_name'))
+        is_success = LogService._safe_bool(request.GET.get('is_success'))
 
         queryset = OperationLog.objects.all()
 
@@ -53,7 +85,7 @@ class LogService:
             queryset = queryset.filter(created_at__lte=end_time)
         if action_type:
             queryset = queryset.filter(action_type=action_type)
-        if branch:
+        if branch is not None:
             queryset = queryset.filter(branch=branch)
         if operator_name:
             # 模糊匹配用户名
@@ -61,6 +93,8 @@ class LogService:
                 username__icontains=operator_name
             ).values_list('id', flat=True)
             queryset = queryset.filter(user_id__in=user_ids)
+        if is_success is not None:
+            queryset = queryset.filter(is_success=is_success)
 
         queryset = queryset.order_by('-created_at')
 
@@ -86,12 +120,12 @@ class LogService:
         Returns:
             dict: 包含分页数据的字典
         """
-        page = int(request.GET.get('page', 1))
-        limit = int(request.GET.get('limit', 10))
-        start_time = request.GET.get('start_time')
-        end_time = request.GET.get('end_time')
-        fault_device = request.GET.get('fault_device')
-        device_code = request.GET.get('device_code')
+        page = LogService._safe_int(request.GET.get('page'), 1)
+        limit = LogService._safe_int(request.GET.get('limit'), 10)
+        start_time = LogService._safe_str(request.GET.get('start_time'))
+        end_time = LogService._safe_str(request.GET.get('end_time'))
+        fault_device = LogService._safe_str(request.GET.get('fault_device'))
+        device_code = LogService._safe_str(request.GET.get('device_code'))
 
         queryset = MaintenanceLog.objects.all()
 

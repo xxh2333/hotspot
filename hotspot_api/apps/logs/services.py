@@ -269,6 +269,36 @@ class LogService:
         return {'url': f'/media/{relative_path}'}
 
     @staticmethod
+    def upload_to_oss(file_bytes: bytes, object_key: str) -> str:
+        """
+        上传文件到阿里云 OSS，返回 OSS object key。
+
+        Args:
+            file_bytes: 文件字节数据
+            object_key: OSS 对象键，如 'alarm_images/1/2026-07-06/xxx.jpg'
+
+        Returns:
+            str: 上传成功的 OSS object key
+
+        Raises:
+            ValueError: OSS 配置缺失
+            RuntimeError: 上传失败
+        """
+        oss_config = getattr(settings, 'OSS_CONFIG', None)
+        if not oss_config or not oss_config.get('ACCESS_KEY_ID'):
+            raise ValueError('OSS_CONFIG 未配置，无法上传')
+
+        import oss2
+        auth = oss2.Auth(oss_config['ACCESS_KEY_ID'], oss_config['ACCESS_KEY_SECRET'])
+        bucket = oss2.Bucket(auth, oss_config['ENDPOINT'], oss_config['BUCKET_NAME'])
+
+        result = bucket.put_object(object_key, BytesIO(file_bytes))
+        if result.status != 200:
+            raise RuntimeError(f'OSS 上传失败，状态码: {result.status}')
+
+        return object_key
+
+    @staticmethod
     def export_logs_to_excel(request, user, log_type, start_time, end_time):
         """
         导出日志为 Excel 文件

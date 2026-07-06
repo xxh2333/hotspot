@@ -22,7 +22,12 @@ def trend_chart_realtime(request):
         return JsonResponse({'code': 401, 'msg': 'Token无效', 'success': False}, status=401)
 
     branch = request.GET.get('branch')
-    duration = min(int(request.GET.get('duration', 600)), 3600)
+    # 安全解析 duration：空值/空白/非法值默认 600
+    duration_raw = (request.GET.get('duration') or '').strip()
+    try:
+        duration = min(int(duration_raw) if duration_raw else 600, 3600)
+    except (TypeError, ValueError):
+        duration = 600
 
     if branch is not None:
         try:

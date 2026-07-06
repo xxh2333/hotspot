@@ -11,10 +11,17 @@
 
 import json
 import random
+import sys
 import time
 from datetime import datetime, timezone, timedelta
 
 import paho.mqtt.client as mqtt
+
+# 修复 Windows 中文环境下 Unicode 字符打印报错的问题
+if sys.platform == 'win32':
+    import io
+    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace')
+    sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8', errors='replace')
 
 # ═══════════════════════════════════════════════
 # 配置
@@ -75,9 +82,9 @@ def generate_payload(branch: int) -> dict:
 def on_connect(client, userdata, flags, rc, properties=None):
     """MQTT 连接回调"""
     if rc == 0:
-        print(f"[✓] 已连接到 MQTT Broker: {BROKER_HOST}:{BROKER_PORT}")
+        print(f"[OK] 已连接到 MQTT Broker: {BROKER_HOST}:{BROKER_PORT}")
     else:
-        print(f"[✗] 连接失败，返回码: {rc}")
+        print(f"[FAIL] 连接失败，返回码: {rc}")
 
 
 def on_disconnect(client, userdata, flags, rc, properties=None):
@@ -86,10 +93,10 @@ def on_disconnect(client, userdata, flags, rc, properties=None):
         print(f"[!] 意外断开连接 (rc={rc})，尝试自动重连...")
 
 
-def on_publish(client, userdata, mid, reason_code, properties):
+def on_publish(client, userdata, mid, properties=None):
     """发布回调"""
     # 静默回调，避免刷屏；取消注释可调试
-    # print(f"  → 消息 {mid} 已送达")
+    # print(f"  -> 消息 {mid} 已送达")
     pass
 
 
@@ -97,7 +104,7 @@ def build_client() -> mqtt.Client:
     """创建并配置 MQTT 客户端"""
     client = mqtt.Client(
         client_id=f"simulator_{random.randint(1000, 9999)}",
-        protocol=mqtt.MQTTv5,
+        protocol=mqtt.MQTTv311,
     )
     client.on_connect = on_connect
     client.on_disconnect = on_disconnect

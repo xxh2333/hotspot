@@ -28,6 +28,7 @@ urlpatterns = [
     path('api/trend-chart/', include('apps.trend_chart.urls')),
     path('api/log/', include('apps.logs.urls')),
     path('api/', include('apps.history.urls')),
+    path('api/', include('apps.monitor.urls')),
 ]
 
 if settings.DEBUG:

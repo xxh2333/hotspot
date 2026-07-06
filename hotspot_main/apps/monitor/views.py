@@ -18,8 +18,9 @@ import threading
 import logging
 import uuid
 
-from django.http import StreamingHttpResponse
+from django.http import StreamingHttpResponse, JsonResponse
 from django.utils import timezone
+from django.views import View
 from rest_framework import status
 from rest_framework.views import APIView
 from rest_framework.permissions import IsAuthenticated, AllowAny
@@ -324,25 +325,30 @@ class ControlThresholdView(APIView):
 
 
 # ============================================================================
-# 7. SSE 实时数据流
+# 7. SSE 实时数据流（原生 Django View，绕过 DRF 内容协商，防止 406）
 # ============================================================================
 
-class DashboardStreamView(APIView):
+class DashboardStreamView(View):
     """
     GET /api/dashboard/stream
     SSE 事件流，实时推送温度、告警、红外图像
 
     认证方式：URL 参数 token
     连接地址：/api/dashboard/stream?token=<access_token>
+
+    注意：使用 Django 原生 View 而非 DRF APIView，
+    因为浏览器 EventSource 会发 Accept: text/event-stream，
+    DRF 内容协商不认识这个类型会返回 406。
     """
-    permission_classes = [AllowAny]
-    authentication_classes = []
 
     def get(self, request):
         # Token 认证
-        token = request.query_params.get('token')
+        token = request.GET.get('token')
         if not token:
-            return make_response(code=ErrorCode.MISSING_PARAM, msg='缺少认证参数: token')
+            return JsonResponse(
+                APIResponse.fail(ErrorCode.MISSING_PARAM, '缺少认证参数: token'),
+                status=400,
+            )
 
         # 验证 JWT Token
         try:
@@ -350,16 +356,25 @@ class DashboardStreamView(APIView):
             validated_token = jwt_auth.get_validated_token(token)
             user = jwt_auth.get_user(validated_token)
             if user is None or not user.is_active:
-                return make_response(code=ErrorCode.BAD_REQUEST, msg='Token 无效或用户已禁用')
+                return JsonResponse(
+                    APIResponse.fail(ErrorCode.BAD_REQUEST, 'Token 无效或用户已禁用'),
+                    status=400,
+                )
         except (InvalidToken, TokenError) as e:
-            return make_response(code=ErrorCode.BAD_REQUEST, msg=f'Token 认证失败: {str(e)}')
+            return JsonResponse(
+                APIResponse.fail(ErrorCode.BAD_REQUEST, f'Token 认证失败: {str(e)}'),
+                status=400,
+            )
         except Exception as e:
-            return make_response(code=ErrorCode.BAD_REQUEST, msg=f'Token 认证失败: {str(e)}')
+            return JsonResponse(
+                APIResponse.fail(ErrorCode.BAD_REQUEST, f'Token 认证失败: {str(e)}'),
+                status=400,
+            )
 
         # 生成客户端 ID
         client_id = f'{user.id}-{uuid.uuid4().hex[:8]}'
 
-        # 创建 SSE 流式响应（yield bytes 避免 wsgiref 兼容性问题）
+        # 创建 SSE 流式响应
         response = StreamingHttpResponse(
             self._event_generator(client_id),
             content_type='text/event-stream',

@@ -33,6 +33,7 @@ INSTALLED_APPS = [
     'apps.logs',
     'apps.trend_chart',
     'apps.history',
+    'apps.monitor',
 ]
 
 MIDDLEWARE = [

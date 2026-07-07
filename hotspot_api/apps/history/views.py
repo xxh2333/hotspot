@@ -110,7 +110,8 @@ class HistoryTemperatureViewSet(viewsets.GenericViewSet):
     ABNORMAL_AREA_THRESHOLD = 10.0   # %
 
     def _build_temperature_queryset(self, start_dt, end_dt, branch=None,
-                                     min_temp=None, max_temp=None, status=None):
+                                     min_temp=None, max_temp=None, status=None,
+                                     keyword=None):
         """构建温度查询过滤条件"""
         qs = TemperatureRecord.objects.filter(
             timestamp__gte=start_dt,
@@ -128,6 +129,12 @@ class HistoryTemperatureViewSet(viewsets.GenericViewSet):
                 qs = qs.filter(abnormal_q)
             elif status == 'normal':
                 qs = qs.exclude(abnormal_q)
+        if keyword is not None:
+            try:
+                keyword_int = int(keyword)
+                qs = qs.filter(Q(id=keyword_int) | Q(branch=keyword_int))
+            except (TypeError, ValueError):
+                pass  # 非数字 keyword 不匹配任何记录
         return qs.order_by('-timestamp')
 
     # ──────────────────────────────────────────
@@ -137,8 +144,9 @@ class HistoryTemperatureViewSet(viewsets.GenericViewSet):
         """
         GET /api/history/temperature/
         必填: start_time, end_time
-        可选: branch, min_temp, max_temp, status, page, size
+        可选: branch, min_temp, max_temp, status, keyword, page, size
         status: 正常 / 异常（筛选温度记录状态）
+        keyword: 按记录 ID 或支路编号精确匹配（传入数字）
         """
         start_time = request.query_params.get('start_time')
         end_time = request.query_params.get('end_time')
@@ -177,8 +185,10 @@ class HistoryTemperatureViewSet(viewsets.GenericViewSet):
             else:
                 return Result.error(code=400, msg='status 参数无效，可选: 正常 / 异常')
 
+        keyword = request.query_params.get('keyword')
+
         queryset = self._build_temperature_queryset(
-            start_dt, end_dt, branch, min_temp, max_temp, status,
+            start_dt, end_dt, branch, min_temp, max_temp, status, keyword,
         )
 
         page = self.paginate_queryset(queryset)
@@ -190,7 +200,68 @@ class HistoryTemperatureViewSet(viewsets.GenericViewSet):
         return Result.success(data={'total': queryset.count(), 'list': serializer.data})
 
     # ──────────────────────────────────────────
-    # 3.2 温度历史导出（仅管理员）
+    # 3.2 温度统计汇总
+    # ──────────────────────────────────────────
+    @action(detail=False, methods=['get'], url_path='summary')
+    def summary(self, request):
+        """
+        GET /history/temperature/summary/
+        温度统计汇总，返回筛选条件下的全量统计（不翻页）。
+        必填: start_time, end_time
+        可选: branch, status
+        """
+        start_time = request.query_params.get('start_time')
+        end_time = request.query_params.get('end_time')
+
+        (start_dt, end_dt), err = _validate_time_range(start_time, end_time)
+        if err:
+            return err
+
+        branch = request.query_params.get('branch')
+        if branch is not None:
+            try:
+                branch = int(branch)
+            except (TypeError, ValueError):
+                return Result.error(code=400, msg='branch 参数格式错误')
+
+        status = request.query_params.get('status')
+        if status is not None:
+            if status == '正常':
+                status = 'normal'
+            elif status == '异常':
+                status = 'abnormal'
+            else:
+                return Result.error(code=400, msg='status 参数无效，可选: 正常 / 异常')
+
+        queryset = self._build_temperature_queryset(start_dt, end_dt, branch, status=status)
+
+        total = queryset.count()
+        if total == 0:
+            return Result.success(data={
+                'total': 0,
+                'avg_temp': 0.0,
+                'max_temp': 0.0,
+                'abnormal_count': 0,
+            })
+
+        from django.db.models import Avg, Max
+        agg = queryset.aggregate(
+            avg_temp=Avg('avg_temp'),
+            max_temp=Max('max_temp'),
+        )
+
+        abnormal_q = Q(max_temp__gte=self.ABNORMAL_TEMP_THRESHOLD) | Q(area_ratio__gte=self.ABNORMAL_AREA_THRESHOLD)
+        abnormal_count = queryset.filter(abnormal_q).count()
+
+        return Result.success(data={
+            'total': total,
+            'avg_temp': round(float(agg['avg_temp'] or 0), 2),
+            'max_temp': float(agg['max_temp'] or 0),
+            'abnormal_count': abnormal_count,
+        })
+
+    # ──────────────────────────────────────────
+    # 3.3 温度历史导出（仅管理员）
     # ──────────────────────────────────────────
     @action(detail=False, methods=['post'], url_path='export')
     def export(self, request):

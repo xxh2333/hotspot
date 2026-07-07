@@ -12,33 +12,29 @@ TIME_FORMAT = '%H:%M:%S'
 
 
 class OperationLogSerializer(serializers.ModelSerializer):
-    """
-    人员操作日志序列化器
-    """
-    operator_name = serializers.SerializerMethodField(read_only=True)
-    maintenance_status_display = serializers.SerializerMethodField(read_only=True)
-    created_at = serializers.DateTimeField(format=DATETIME_FORMAT, read_only=True)
+    operator_name = serializers.CharField(source='user.username', read_only=True)
+    images = serializers.SerializerMethodField()
 
     class Meta:
         model = OperationLog
-        fields = ['id', 'operator_name', 'branch', 'action_type', 'maintenance_status',
-                  'maintenance_status_display', 'action_detail', 'created_at']
+        fields = [
+            'id',
+            'operator_name',
+            'branch',
+            'action_type',
+            'maintenance_status',
+            'action_detail',
+            'images',
+            'created_at'
+        ]
 
-    def get_operator_name(self, obj):
-        """
-        通过 user_id 关联获取用户名
-        """
-        try:
-            user = User.objects.get(id=obj.user_id)
-            return user.username
-        except User.DoesNotExist:
-            return '未知用户'
-
-    def get_maintenance_status_display(self, obj):
-        """
-        获取维护状态的中文显示
-        """
-        return obj.get_maintenance_status_display()
+    def get_images(self, obj):
+        """从 action_detail 中提取图片 URL 数组"""
+        if obj.action_detail and isinstance(obj.action_detail, dict):
+            images = obj.action_detail.get('images')
+            if images and isinstance(images, list):
+                return images
+        return []
 
 
 class MaintenanceLogSerializer(serializers.ModelSerializer):

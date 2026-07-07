@@ -29,7 +29,8 @@ class OperationLogListView(APIView):
             - end_time: 结束时间
             - action_type: 操作类型
             - branch: 支路编号
-            - operator_name: 操作人姓名（模糊匹配）
+            - user_id: 操作用户ID（精确匹配）
+            - maintenance_status: 维护状态（maintained/maintaining/unmaintained）
         """
         data = LogService.get_operation_logs(request, request.user)
 
@@ -53,7 +54,7 @@ class OperationLogCreateView(APIView):
         请求体（JSON）:
             - branch: integer, 必填, 支路编号（1-4）
             - action_type: string, 必填, remote_control/threshold_update/repair_device
-            - is_success: boolean, 必填, true=正常 false=异常
+            - maintenance_status: string, 必填, maintained/maintaining/unmaintained
             - action_detail: object, 可选, 详情JSON
         """
         serializer = CreateOperationLogSerializer(data=request.data)
@@ -82,6 +83,7 @@ class MaintenanceLogListView(APIView):
             - end_time: 结束时间
             - fault_device: 故障设备类型
             - device_code: 支路编号
+            - user_id: 维修人员ID（精确匹配）
         """
         data = LogService.get_maintenance_logs(request, request.user)
 
@@ -107,6 +109,7 @@ class MaintenanceLogCreateView(APIView):
             - fault_device: string, 可选, 故障设备类型
             - repair_detail: string, 必填, 维修措施描述
             - repair_images: array, 可选, 图片URL数组
+            - remark: string, 可选, 备注信息
         """
         serializer = CreateMaintenanceLogSerializer(data=request.data)
         if not serializer.is_valid():

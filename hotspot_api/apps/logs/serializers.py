@@ -15,6 +15,7 @@ class OperationLogSerializer(serializers.ModelSerializer):
     operator_name = serializers.SerializerMethodField(read_only=True)
     images = serializers.SerializerMethodField()
     detail = serializers.SerializerMethodField()
+    maintenance_status_display = serializers.SerializerMethodField()
 
     class Meta:
         model = OperationLog
@@ -24,6 +25,7 @@ class OperationLogSerializer(serializers.ModelSerializer):
             'branch',
             'action_type',
             'maintenance_status',
+            'maintenance_status_display',
             'action_detail',
             'images',
             'detail',
@@ -51,6 +53,10 @@ class OperationLogSerializer(serializers.ModelSerializer):
         if obj.action_detail and isinstance(obj.action_detail, dict):
             return obj.action_detail.get('detail', '')
         return ''
+
+    def get_maintenance_status_display(self, obj):
+        """获取维护状态的中文显示"""
+        return obj.get_maintenance_status_display()
 
 
 class MaintenanceLogSerializer(serializers.ModelSerializer):

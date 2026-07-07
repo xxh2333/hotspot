@@ -12,7 +12,7 @@ TIME_FORMAT = '%H:%M:%S'
 
 
 class OperationLogSerializer(serializers.ModelSerializer):
-    operator_name = serializers.CharField(source='user.username', read_only=True)
+    operator_name = serializers.SerializerMethodField(read_only=True)
     images = serializers.SerializerMethodField()
 
     class Meta:
@@ -27,6 +27,14 @@ class OperationLogSerializer(serializers.ModelSerializer):
             'images',
             'created_at'
         ]
+
+    def get_operator_name(self, obj):
+        """通过 user_id 关联获取用户名"""
+        try:
+            user = User.objects.get(id=obj.user_id)
+            return user.username
+        except User.DoesNotExist:
+            return '未知用户'
 
     def get_images(self, obj):
         """从 action_detail 中提取图片 URL 数组"""

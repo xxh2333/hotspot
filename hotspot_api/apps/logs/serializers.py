@@ -14,6 +14,7 @@ TIME_FORMAT = '%H:%M:%S'
 class OperationLogSerializer(serializers.ModelSerializer):
     operator_name = serializers.SerializerMethodField(read_only=True)
     images = serializers.SerializerMethodField()
+    detail = serializers.SerializerMethodField()
 
     class Meta:
         model = OperationLog
@@ -25,6 +26,7 @@ class OperationLogSerializer(serializers.ModelSerializer):
             'maintenance_status',
             'action_detail',
             'images',
+            'detail',
             'created_at'
         ]
 
@@ -43,6 +45,12 @@ class OperationLogSerializer(serializers.ModelSerializer):
             if images and isinstance(images, list):
                 return images
         return []
+
+    def get_detail(self, obj):
+        """从 action_detail 中提取备注内容"""
+        if obj.action_detail and isinstance(obj.action_detail, dict):
+            return obj.action_detail.get('detail', '')
+        return ''
 
 
 class MaintenanceLogSerializer(serializers.ModelSerializer):

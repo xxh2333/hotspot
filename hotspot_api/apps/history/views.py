@@ -405,10 +405,13 @@ class HistoryAlarmViewSet(viewsets.GenericViewSet):
         """
         批量查询维修记录，返回 {alarm_id: MaintenanceLog} 映射。
         避免在 serializer 中逐条查询（N+1 问题）。
+        使用 .only() 避免因数据库迁移滞后导致的缺失列错误。
         """
         if not alarm_ids:
             return {}
-        maintenances = MaintenanceLog.objects.filter(alarm_id__in=alarm_ids)
+        maintenances = MaintenanceLog.objects.only(
+            'alarm_id', 'id', 'user_id', 'repair_detail', 'repair_images',
+        ).filter(alarm_id__in=alarm_ids)
         return {m.alarm_id: m for m in maintenances}
 
     # ──────────────────────────────────────────

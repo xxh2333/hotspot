@@ -16,8 +16,8 @@ from datetime import datetime
 print('=== 1. 查 alarm_records 表 ===')
 try:
     qs = AlarmRecord.objects.filter(
-        trigger_time__gte=datetime(2026,1,1),
-        trigger_time__lte=datetime(2026,7,5)
+        timestamp__gte=datetime(2026,1,1),
+        timestamp__lte=datetime(2026,7,5)
     )
     count = qs.count()
     print(f'OK: 找到 {count} 条记录')
@@ -42,9 +42,9 @@ print('=== 3. 模拟告警查询完整流程 ===')
 try:
     from apps.history.serializers import AlarmRecordSerializer
     qs = AlarmRecord.objects.filter(
-        trigger_time__gte=datetime(2026,1,1),
-        trigger_time__lte=datetime(2026,7,5)
-    ).order_by('-trigger_time')[:5]
+        timestamp__gte=datetime(2026,1,1),
+        timestamp__lte=datetime(2026,7,5)
+    ).order_by('-timestamp')[:5]
     alarm_ids = [obj.id for obj in qs]
     print(f'alarm_ids: {alarm_ids}')
     maint_map = {}

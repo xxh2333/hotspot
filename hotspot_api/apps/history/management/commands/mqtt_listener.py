@@ -2,7 +2,7 @@
 Django 自定义管理命令 — MQTT 数据监听器
 =========================================
 后台常驻运行，订阅 sensor/branch/# 主题，
-将树莓派上报的温度数据实时写入 temperature_records 表。
+将树莓派上报的温度数据实时写入 monitor_temperature_record 表。
 
 启动方式：
     python manage.py mqtt_listener
@@ -16,7 +16,6 @@ import logging
 import signal
 import sys
 from datetime import datetime, timezone, timedelta
-from typing import Any
 
 import paho.mqtt.client as mqtt
 from django.core.management.base import BaseCommand
@@ -31,13 +30,12 @@ logger = logging.getLogger(__name__)
 TZ_SHANGHAI = timezone(timedelta(hours=8))
 
 # TemperatureRecord 字段列表（用于校验）
-REQUIRED_FIELDS = {'branch', 'timestamp', 'max_temp', 'min_temp', 'avg_temp', 'area_ratio', 'hotspot_count'}
+REQUIRED_FIELDS = {'branch', 'timestamp', 'max_temp', 'avg_temp', 'area_ratio'}
 
 # 数据合理性边界
 BRANCH_RANGE = (1, 4)
 TEMP_RANGE = (-20.0, 150.0)
 AREA_RATIO_RANGE = (0.0, 100.0)
-HOTSPOT_RANGE = (0, 20)
 
 
 def parse_timestamp(ts_str: str) -> datetime | None:
@@ -89,7 +87,7 @@ def validate_payload(data: dict) -> list[str]:
         errors.append(f"无法解析 timestamp: {data['timestamp']}")
 
     # 4. 温度字段
-    for field in ('max_temp', 'min_temp', 'avg_temp'):
+    for field in ('max_temp', 'avg_temp'):
         val = data.get(field)
         if not isinstance(val, (int, float)):
             errors.append(f"{field} 不是数值类型: {val}")
@@ -100,11 +98,6 @@ def validate_payload(data: dict) -> list[str]:
     ar = data['area_ratio']
     if not isinstance(ar, (int, float)) or not (AREA_RATIO_RANGE[0] <= ar <= AREA_RATIO_RANGE[1]):
         errors.append(f"area_ratio 超出范围: {ar}（期望 {AREA_RATIO_RANGE[0]}~{AREA_RATIO_RANGE[1]}）")
-
-    # 6. hotspot_count
-    hc = data['hotspot_count']
-    if not isinstance(hc, int) or not (HOTSPOT_RANGE[0] <= hc <= HOTSPOT_RANGE[1]):
-        errors.append(f"hotspot_count 超出范围: {hc}（期望 {HOTSPOT_RANGE[0]}~{HOTSPOT_RANGE[1]}）")
 
     return errors
 
@@ -117,7 +110,7 @@ class Command(BaseCommand):
     常驻进程，按 Ctrl+C 优雅退出。
     """
 
-    help = '启动 MQTT 监听器，订阅 sensor/branch/# 并持续写入 temperature_records 表'
+    help = '启动 MQTT 监听器，订阅 sensor/branch/# 并持续写入 monitor_temperature_record 表'
 
     def add_arguments(self, parser):
         parser.add_argument(
@@ -199,10 +192,8 @@ class Command(BaseCommand):
                 timestamp=ts,
                 defaults={
                     'max_temp': data['max_temp'],
-                    'min_temp': data['min_temp'],
                     'avg_temp': data['avg_temp'],
                     'area_ratio': data['area_ratio'],
-                    'hotspot_count': data['hotspot_count'],
                 },
             )
 

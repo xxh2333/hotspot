@@ -110,7 +110,7 @@ class HistoryTemperatureViewSet(viewsets.GenericViewSet):
     ABNORMAL_AREA_THRESHOLD = 10.0   # %
 
     def _build_temperature_queryset(self, start_dt, end_dt, branch=None,
-                                     min_temp=None, max_temp=None, status=None,
+                                     max_temp=None, status=None,
                                      keyword=None):
         """构建温度查询过滤条件"""
         qs = TemperatureRecord.objects.filter(
@@ -119,8 +119,6 @@ class HistoryTemperatureViewSet(viewsets.GenericViewSet):
         )
         if branch is not None:
             qs = qs.filter(branch=branch)
-        if min_temp is not None:
-            qs = qs.filter(max_temp__gte=min_temp)
         if max_temp is not None:
             qs = qs.filter(max_temp__lte=max_temp)
         if status is not None:
@@ -144,7 +142,7 @@ class HistoryTemperatureViewSet(viewsets.GenericViewSet):
         """
         GET /api/history/temperature/
         必填: start_time, end_time
-        可选: branch, min_temp, max_temp, status, keyword, page, size
+        可选: branch, max_temp, status, keyword, page, size
         status: 正常 / 异常（筛选温度记录状态）
         keyword: 按记录 ID 或支路编号精确匹配（传入数字）
         """
@@ -161,13 +159,6 @@ class HistoryTemperatureViewSet(viewsets.GenericViewSet):
                 branch = int(branch)
             except (TypeError, ValueError):
                 return Result.error(code=400, msg='branch 参数格式错误')
-
-        min_temp = request.query_params.get('min_temp')
-        if min_temp is not None:
-            try:
-                min_temp = float(min_temp)
-            except (TypeError, ValueError):
-                return Result.error(code=400, msg='min_temp 参数格式错误')
 
         max_temp = request.query_params.get('max_temp')
         if max_temp is not None:
@@ -188,7 +179,7 @@ class HistoryTemperatureViewSet(viewsets.GenericViewSet):
         keyword = request.query_params.get('keyword')
 
         queryset = self._build_temperature_queryset(
-            start_dt, end_dt, branch, min_temp, max_temp, status, keyword,
+            start_dt, end_dt, branch, max_temp, status, keyword,
         )
 
         page = self.paginate_queryset(queryset)
@@ -282,11 +273,10 @@ class HistoryTemperatureViewSet(viewsets.GenericViewSet):
         start_dt = data['start_time']
         end_dt = data['end_time']
         branch = data.get('branch')
-        min_temp = data.get('min_temp')
         max_temp = data.get('max_temp')
 
         queryset = self._build_temperature_queryset(
-            start_dt, end_dt, branch, min_temp, max_temp,
+            start_dt, end_dt, branch, max_temp,
         )
 
         return self._generate_temperature_excel(queryset, start_dt, end_dt)
@@ -310,7 +300,7 @@ class HistoryTemperatureViewSet(viewsets.GenericViewSet):
         )
 
         # ── 表头 ──
-        headers = ['支路编号', '采集时间', '最高温度(℃)', '最低温度(℃)', '平均温度(℃)', '热斑面积占比(%)', '热斑数量']
+        headers = ['支路编号', '采集时间', '最高温度(℃)', '平均温度(℃)', '热斑面积占比(%)']
         for col_idx, header in enumerate(headers, 1):
             cell = ws.cell(row=1, column=col_idx, value=header)
             cell.fill = header_fill
@@ -329,10 +319,8 @@ class HistoryTemperatureViewSet(viewsets.GenericViewSet):
                 record.branch,
                 record.timestamp.strftime('%Y-%m-%d %H:%M:%S.%f')[:-3] if record.timestamp else '',
                 float(record.max_temp),
-                float(record.min_temp) if record.min_temp is not None else '',
                 float(record.avg_temp) if record.avg_temp is not None else '',
                 float(record.area_ratio),
-                record.hotspot_count,
             ]
 
             for col_idx, value in enumerate(row_data, 1):
@@ -343,7 +331,7 @@ class HistoryTemperatureViewSet(viewsets.GenericViewSet):
                 cell.border = thin_border
 
         # ── 列宽自适应 ──
-        col_widths = [10, 28, 14, 14, 14, 16, 10]
+        col_widths = [10, 28, 14, 14, 16]
         for col_idx, width in enumerate(col_widths, 1):
             ws.column_dimensions[ws.cell(row=1, column=col_idx).column_letter].width = width
 
@@ -387,19 +375,19 @@ class HistoryAlarmViewSet(viewsets.GenericViewSet):
     serializer_class = AlarmRecordSerializer
 
     def _build_alarm_queryset(self, start_dt, end_dt, branch=None,
-                               alarm_type=None, resolution_status=None):
+                               alarm_type=None, status=None):
         """构建告警查询过滤条件"""
         qs = AlarmRecord.objects.filter(
-            trigger_time__gte=start_dt,
-            trigger_time__lte=end_dt,
+            timestamp__gte=start_dt,
+            timestamp__lte=end_dt,
         )
         if branch is not None:
             qs = qs.filter(branch=branch)
         if alarm_type is not None:
             qs = qs.filter(alarm_type=alarm_type)
-        if resolution_status is not None:
-            qs = qs.filter(resolution_status=resolution_status)
-        return qs.order_by('-trigger_time')
+        if status is not None:
+            qs = qs.filter(status=status)
+        return qs.order_by('-timestamp')
 
     def _get_maintenance_map(self, alarm_ids):
         """
@@ -421,7 +409,8 @@ class HistoryAlarmViewSet(viewsets.GenericViewSet):
         """
         GET /api/history/alarm/
         必填: start_time, end_time
-        可选: branch, alarm_type, resolution_status, page, size
+        可选: branch, alarm_type, status, page, size
+        alarm_type: hot_spot / over_temp / offline
         """
         start_time = request.query_params.get('start_time')
         end_time = request.query_params.get('end_time')
@@ -439,21 +428,16 @@ class HistoryAlarmViewSet(viewsets.GenericViewSet):
 
         alarm_type = request.query_params.get('alarm_type')
         if alarm_type is not None:
-            try:
-                alarm_type = int(alarm_type)
-            except (TypeError, ValueError):
-                # 兼容字符串入参（hot_spot / over_temp / offline）
-                type_map = {'hot_spot': 1, 'over_temp': 2, 'offline': 3}
-                alarm_type = type_map.get(alarm_type)
-                if alarm_type is None:
-                    return Result.error(code=400, msg='alarm_type 参数无效，可选: 1/2/3 或 hot_spot/over_temp/offline')
+            valid_types = {'hot_spot', 'over_temp', 'offline'}
+            if alarm_type not in valid_types:
+                return Result.error(code=400, msg='alarm_type 无效，可选: hot_spot/over_temp/offline')
 
-        resolution_status = request.query_params.get('resolution_status')
-        if resolution_status and resolution_status not in ('pending', 'resolved', 'recovering'):
-            return Result.error(code=400, msg='resolution_status 参数无效，可选: pending/resolved/recovering')
+        status = request.query_params.get('status')
+        if status and status not in ('pending', 'resolved', 'recovering'):
+            return Result.error(code=400, msg='status 参数无效，可选: pending/resolved/recovering')
 
         queryset = self._build_alarm_queryset(
-            start_dt, end_dt, branch, alarm_type, resolution_status,
+            start_dt, end_dt, branch, alarm_type, status,
         )
 
         page = self.paginate_queryset(queryset)
@@ -477,21 +461,13 @@ class HistoryAlarmViewSet(viewsets.GenericViewSet):
         """
         GET /api/history/alarm/{id}/presign/
         根据告警记录 ID 生成 OSS 预签名 URL（有效期 300 秒）。
-        Query: type = original（默认）/ annotated
         """
         try:
             alarm = AlarmRecord.objects.get(pk=pk)
         except AlarmRecord.DoesNotExist:
             return Result.error(code=404, msg='告警记录不存在')
 
-        image_type = request.query_params.get('type', 'original')
-
-        if image_type == 'annotated':
-            if not alarm.annotated_image_path:
-                return Result.error(code=404, msg='该告警记录没有标注图')
-            object_key = alarm.annotated_image_path.lstrip('/')
-        else:
-            object_key = alarm.image_path.lstrip('/')
+        object_key = alarm.image_path.lstrip('/') if alarm.image_path else ''
 
         url = self._generate_presigned_url(object_key)
         if url is None:
@@ -535,11 +511,9 @@ class HistoryAlarmViewSet(viewsets.GenericViewSet):
         请求体 (multipart/form-data):
             - alarm_id: int, 必填, 告警记录 ID
             - image: File, 必填, 图片文件 (jpg/png/webp, ≤5MB)
-            - image_type: str, 可选, 'original'(默认) 或 'annotated'
         """
         alarm_id = request.POST.get('alarm_id')
         image_file = request.FILES.get('image')
-        image_type = request.POST.get('image_type', 'original')
 
         # 参数校验
         if not alarm_id:
@@ -573,8 +547,7 @@ class HistoryAlarmViewSet(viewsets.GenericViewSet):
         date_str = now.strftime('%Y-%m-%d')
         time_str = now.strftime('%Y%m%d_%H%M%S')
         branch = alarm.branch
-        suffix = '_annotated' if image_type == 'annotated' else ''
-        object_key = f'alarm_images/{branch}/{date_str}/{alarm_id}_{time_str}{suffix}{ext}'
+        object_key = f'alarm_images/{branch}/{date_str}/{alarm_id}_{time_str}{ext}'
 
         # 上传到 OSS
         try:
@@ -586,20 +559,15 @@ class HistoryAlarmViewSet(viewsets.GenericViewSet):
             return Result.error(code=500, msg=str(e))
 
         # 更新告警记录的 image_path
-        if image_type == 'annotated':
-            alarm.annotated_image_path = uploaded_key
-            alarm.save(update_fields=['annotated_image_path', 'updated_at'])
-        else:
-            alarm.image_path = uploaded_key
-            alarm.save(update_fields=['image_path', 'updated_at'])
+        alarm.image_path = uploaded_key
+        alarm.save(update_fields=['image_path'])
 
-        logger.info(f'告警 {alarm_id} 的 {image_type} 图片已补偿上传: {uploaded_key}')
+        logger.info(f'告警 {alarm_id} 的图片已补偿上传: {uploaded_key}')
         return Result.success(
             msg='图片上传成功',
             data={
                 'alarm_id': alarm.id,
                 'object_key': uploaded_key,
-                'image_type': image_type,
             },
         )
 
@@ -625,10 +593,10 @@ class HistoryAlarmViewSet(viewsets.GenericViewSet):
         end_dt = data['end_time']
         branch = data.get('branch')
         alarm_type = data.get('alarm_type')
-        resolution_status = data.get('resolution_status')
+        status = data.get('status')
 
         queryset = self._build_alarm_queryset(
-            start_dt, end_dt, branch, alarm_type, resolution_status,
+            start_dt, end_dt, branch, alarm_type, status,
         )
 
         return self._generate_alarm_excel(queryset, start_dt, end_dt)
@@ -653,10 +621,9 @@ class HistoryAlarmViewSet(viewsets.GenericViewSet):
         # ── 表头 ──
         headers = [
             '支路编号', '告警类型', '触发时间',
-            '温度(℃)', '温差(℃)', '面积占比(%)',
-            '温度阈值(℃)', '面积阈值(%)',
-            '自动跳闸', '执行动作', '处置状态',
-            '处置时间', '处置人', '告警描述',
+            '温度(℃)', '面积占比(%)',
+            '自动跳闸', '处置状态',
+            '处置时间', '告警描述',
         ]
         for col_idx, header in enumerate(headers, 1):
             cell = ws.cell(row=1, column=col_idx, value=header)
@@ -666,25 +633,18 @@ class HistoryAlarmViewSet(viewsets.GenericViewSet):
             cell.border = thin_border
 
         # ── 数据行 ──
-        alarm_type_display = {1: '热斑告警', 2: '温度过载告警', 3: '设备离线告警'}
-        action_display = {'trip': '跳闸', 'reset': '复位', 'none': '无'}
         status_display = {'pending': '未处理', 'resolved': '已处理', 'recovering': '恢复中'}
 
         for row_idx, record in enumerate(queryset.iterator(chunk_size=500), 2):
             row_data = [
                 record.branch,
-                alarm_type_display.get(record.alarm_type, ''),
-                record.trigger_time.strftime('%Y-%m-%d %H:%M:%S') if record.trigger_time else '',
-                float(record.temperature),
-                float(record.temp_difference) if record.temp_difference is not None else '',
-                float(record.area_ratio),
-                float(record.threshold_temp),
-                float(record.threshold_area),
+                record.get_alarm_type_display(),
+                record.timestamp.strftime('%Y-%m-%d %H:%M:%S') if record.timestamp else '',
+                float(record.temperature) if record.temperature is not None else '',
+                float(record.area_ratio) if record.area_ratio is not None else '',
                 '是' if record.auto_trip else '否',
-                action_display.get(record.action, ''),
-                status_display.get(record.resolution_status, ''),
+                status_display.get(record.status, ''),
                 record.resolved_at.strftime('%Y-%m-%d %H:%M:%S') if record.resolved_at else '',
-                record.resolved_by or '',
                 record.description or '',
             ]
 
@@ -695,7 +655,7 @@ class HistoryAlarmViewSet(viewsets.GenericViewSet):
                 cell.border = thin_border
 
         # ── 列宽 ──
-        col_widths = [10, 14, 22, 10, 10, 12, 14, 14, 10, 10, 10, 22, 12, 40]
+        col_widths = [10, 14, 22, 10, 12, 10, 10, 22, 40]
         for col_idx, width in enumerate(col_widths, 1):
             ws.column_dimensions[ws.cell(row=1, column=col_idx).column_letter].width = width
 

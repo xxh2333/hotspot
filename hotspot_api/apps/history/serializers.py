@@ -21,8 +21,8 @@ class TemperatureRecordSerializer(serializers.ModelSerializer):
         model = TemperatureRecord
         fields = [
             'id', 'branch', 'timestamp',
-            'max_temp', 'min_temp', 'avg_temp',
-            'area_ratio', 'hotspot_count', 'status',
+            'max_temp', 'avg_temp',
+            'area_ratio', 'sample_count', 'status',
         ]
 
     def get_status(self, obj):
@@ -42,7 +42,6 @@ class TemperatureExportSerializer(serializers.Serializer):
     start_time = serializers.DateTimeField(help_text='开始时间（ISO 8601）')
     end_time = serializers.DateTimeField(help_text='结束时间（ISO 8601）')
     branch = serializers.IntegerField(min_value=1, max_value=4, required=False, help_text='支路编号（1~4）')
-    min_temp = serializers.FloatField(required=False, allow_null=True, help_text='最低温度筛选')
     max_temp = serializers.FloatField(required=False, allow_null=True, help_text='最高温度筛选')
 
     def validate(self, attrs):
@@ -65,23 +64,21 @@ class MaintenanceInfoSerializer(serializers.Serializer):
 class AlarmRecordSerializer(serializers.ModelSerializer):
     """告警记录序列化器（列表展示）"""
 
-    trigger_time = serializers.DateTimeField(format='%Y-%m-%dT%H:%M:%S.%f'[:-3], read_only=True)
+    timestamp = serializers.DateTimeField(format='%Y-%m-%dT%H:%M:%S.%f'[:-3], read_only=True)
     alarm_type_display = serializers.SerializerMethodField(read_only=True)
     maintenance = serializers.SerializerMethodField(read_only=True)
 
     class Meta:
         model = AlarmRecord
         fields = [
-            'id', 'branch', 'trigger_time',
+            'id', 'branch', 'timestamp',
             'alarm_type', 'alarm_type_display',
-            'warning_level',
             'description',
-            'image_path', 'annotated_image_path',
-            'temperature', 'temp_difference', 'area_ratio',
-            'threshold_temp', 'threshold_area',
-            'auto_trip', 'action',
-            'resolution_status',
-            'resolved_at', 'resolved_by',
+            'image_path',
+            'temperature', 'area_ratio',
+            'auto_trip',
+            'status',
+            'resolved_at',
             'maintenance',
         ]
 
@@ -115,8 +112,12 @@ class AlarmExportSerializer(serializers.Serializer):
     start_time = serializers.DateTimeField(help_text='开始时间（ISO 8601）')
     end_time = serializers.DateTimeField(help_text='结束时间（ISO 8601）')
     branch = serializers.IntegerField(min_value=1, max_value=4, required=False, help_text='支路编号（1~4）')
-    alarm_type = serializers.IntegerField(min_value=1, max_value=3, required=False, help_text='告警类型（1/2/3）')
-    resolution_status = serializers.ChoiceField(
+    alarm_type = serializers.ChoiceField(
+        choices=['hot_spot', 'over_temp', 'offline'],
+        required=False,
+        help_text='告警类型（hot_spot/over_temp/offline）',
+    )
+    status = serializers.ChoiceField(
         choices=['pending', 'resolved', 'recovering'],
         required=False,
         help_text='处置状态',

@@ -83,6 +83,7 @@ class LogService:
                     filter_user_id = User.objects.get(username=operator_name).id
                 except User.DoesNotExist:
                     filter_user_id = -1  # 不存在的用户 → 查不到任何结果
+        filter_id = LogService._safe_int(request.GET.get('id'), None)
 
         queryset = OperationLog.objects.all()
 
@@ -96,6 +97,8 @@ class LogService:
             queryset = queryset.filter(created_at__lte=end_time)
         if action_type:
             queryset = queryset.filter(action_type=action_type)
+        if filter_id is not None:
+            queryset = queryset.filter(id=filter_id)
         if branch is not None:
             queryset = queryset.filter(branch=branch)
         if filter_user_id is not None:

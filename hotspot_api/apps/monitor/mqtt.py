@@ -48,8 +48,8 @@ class MQTTClient:
         self._running = False
         self._thread = None
 
-        # 从配置读取 Broker 地址（默认值用于开发）
-        self._broker_host = 'localhost'
+        # 从配置读取 Broker 地址（默认使用公共 Broker 用于开发测试）
+        self._broker_host = 'broker.emqx.io'
         self._broker_port = 1883
         self._keepalive = 60
         self._load_broker_config()

@@ -1,4 +1,5 @@
 import sys
+import threading
 from django.apps import AppConfig
 
 
@@ -9,23 +10,43 @@ class MonitorConfig(AppConfig):
 
     def ready(self):
         """
-        Django 启动时自动初始化默认数据和 MQTT 客户端
-        仅在 runserver 主进程中执行，避免在 migrate/makemigrations 等命令中触发
+        Django 启动时自动初始化默认数据和 MQTT 客户端。
+        管理命令（migrate 等）跳过；生产/开发服务器自动启动 MQTT。
+        可通过环境变量 ENABLE_MQTT=false 关闭。
+
+        使用线程延迟初始化，避免 ASGI (uvicorn) 的 async context 冲突。
         """
-        # 跳过管理命令（migrate, makemigrations, collectstatic 等）
+        # 跳过管理命令
         if any(cmd in sys.argv for cmd in ['migrate', 'makemigrations', 'collectstatic', 'shell', 'createsuperuser']):
             return
 
-        # 仅当通过 runserver 启动时自动初始化
+        import os
+
+        # runserver 的自动重载器会启动两个进程，只在子进程中初始化
         if 'runserver' in sys.argv:
-            import os
-            # Django runserver 使用自动重载器，会启动两个进程
-            # RUN_MAIN='true' 表示这是实际处理请求的子进程
-            if os.environ.get('RUN_MAIN') == 'true':
-                self._init_defaults()
-                # 开发阶段可通过环境变量 ENABLE_MQTT=false 关闭 MQTT
-                if os.environ.get('ENABLE_MQTT', 'true').lower() != 'false':
-                    self._start_mqtt()
+            if os.environ.get('RUN_MAIN') != 'true':
+                return
+
+        enable_mqtt = os.environ.get('ENABLE_MQTT', 'true').lower() != 'false'
+
+        # 延迟 1 秒在线程中初始化，让 Django 完全启动后再操作数据库
+        threading.Thread(
+            target=self._delayed_init,
+            args=(enable_mqtt,),
+            daemon=True,
+            name='monitor-init',
+        ).start()
+
+    @staticmethod
+    def _delayed_init(enable_mqtt: bool):
+        """延迟初始化：等 Django 就绪后再写数据库和启动 MQTT"""
+        import time
+        time.sleep(1)
+
+        MonitorConfig._init_defaults()
+
+        if enable_mqtt:
+            MonitorConfig._start_mqtt()
 
     @staticmethod
     def _init_defaults():
@@ -56,7 +77,7 @@ class MonitorConfig(AppConfig):
             )
             SystemConfig.objects.get_or_create(
                 config_key='mqtt_broker_host',
-                defaults={'config_value': 'localhost', 'description': 'MQTT Broker地址'}
+                defaults={'config_value': 'broker.emqx.io', 'description': 'MQTT Broker地址'}
             )
             SystemConfig.objects.get_or_create(
                 config_key='mqtt_broker_port',
@@ -82,7 +103,7 @@ class MonitorConfig(AppConfig):
 
         except Exception as e:
             import logging
-            logging.getLogger('monitor').warning(f'初始化默认数据失败（可能数据库尚未迁移）: {e}')
+            logging.getLogger('monitor').warning(f'初始化默认数据失败: {e}')
 
     @staticmethod
     def _start_mqtt():

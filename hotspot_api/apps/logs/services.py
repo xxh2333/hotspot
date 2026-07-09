@@ -65,7 +65,8 @@ class LogService:
             dict: 包含分页数据的字典
         """
         page = LogService._safe_int(request.GET.get('page'), 1)
-        limit = LogService._safe_int(request.GET.get('limit'), 10)
+        limit = LogService._safe_int(request.GET.get('limit'), None) or \
+                LogService._safe_int(request.GET.get('page_size'), 10)
         start_time = LogService._safe_str(request.GET.get('start_time'))
         end_time = LogService._safe_str(request.GET.get('end_time'))
         action_type = LogService._safe_str(request.GET.get('action_type'))

@@ -375,7 +375,8 @@ class HistoryAlarmViewSet(viewsets.GenericViewSet):
     serializer_class = AlarmRecordSerializer
 
     def _build_alarm_queryset(self, start_dt, end_dt, branch=None,
-                               alarm_type=None, status=None):
+                               alarm_type=None, status=None,
+                               keyword=None):
         """构建告警查询过滤条件"""
         qs = AlarmRecord.objects.filter(
             timestamp__gte=start_dt,
@@ -387,6 +388,12 @@ class HistoryAlarmViewSet(viewsets.GenericViewSet):
             qs = qs.filter(alarm_type=alarm_type)
         if status is not None:
             qs = qs.filter(status=status)
+        if keyword is not None:
+            try:
+                keyword_int = int(keyword)
+                qs = qs.filter(Q(id=keyword_int) | Q(branch=keyword_int))
+            except (TypeError, ValueError):
+                pass  # 非数字 keyword 不匹配任何记录
         return qs.order_by('-timestamp')
 
     def _get_maintenance_map(self, alarm_ids):
@@ -409,8 +416,9 @@ class HistoryAlarmViewSet(viewsets.GenericViewSet):
         """
         GET /api/history/alarm/
         必填: start_time, end_time
-        可选: branch, alarm_type, status, page, size
+        可选: branch, alarm_type, status, keyword, page, size
         alarm_type: hot_spot / over_temp / offline
+        keyword: 按记录 ID 或支路编号精确匹配（传入数字）
         """
         start_time = request.query_params.get('start_time')
         end_time = request.query_params.get('end_time')
@@ -436,8 +444,10 @@ class HistoryAlarmViewSet(viewsets.GenericViewSet):
         if status and status not in ('pending', 'resolved', 'recovering'):
             return Result.error(code=400, msg='status 参数无效，可选: pending/resolved/recovering')
 
+        keyword = request.query_params.get('keyword')
+
         queryset = self._build_alarm_queryset(
-            start_dt, end_dt, branch, alarm_type, status,
+            start_dt, end_dt, branch, alarm_type, status, keyword,
         )
 
         page = self.paginate_queryset(queryset)

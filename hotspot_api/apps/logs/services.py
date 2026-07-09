@@ -168,6 +168,14 @@ class LogService:
         Returns:
             dict: 创建成功的记录数据
         """
+        # 支持管理员替他人创建操作日志
+        operator_user_id = validated_data.get('operator_user_id')
+        if operator_user_id and user.is_staff:
+            try:
+                user = User.objects.get(id=operator_user_id)
+            except User.DoesNotExist:
+                pass  # 用户不存在则忽略，使用当前用户
+
         operation_log = OperationLog.objects.create(
             user_id=user.id,
             branch=validated_data['branch'],

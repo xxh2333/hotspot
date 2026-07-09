@@ -121,6 +121,7 @@ class CreateOperationLogSerializer(serializers.Serializer):
     action_type = serializers.ChoiceField(choices=OperationLog.ACTION_TYPE_CHOICES, help_text='操作类型')
     maintenance_status = serializers.ChoiceField(choices=MAINTENANCE_STATUS_CHOICES, help_text='维护状态')
     action_detail = serializers.JSONField(required=False, default=dict, help_text='操作详情')
+    operator_user_id = serializers.IntegerField(required=False, allow_null=True, help_text='操作人用户ID（管理员替他人操作时使用）')
 
     def validate_branch(self, value):
         """验证支路编号范围为 1-4"""

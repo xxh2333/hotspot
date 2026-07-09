@@ -652,7 +652,7 @@ class HistoryAlarmViewSet(viewsets.GenericViewSet):
 
         # ── 表头 ──
         headers = [
-            '支路编号', '告警类型', '严重等级', '触发时间',
+            '支路编号', '告警类型', '触发时间',
             '温度(℃)', '温差(℃)', '面积占比(%)',
             '温度阈值(℃)', '面积阈值(%)',
             '自动跳闸', '执行动作', '处置状态',
@@ -674,7 +674,6 @@ class HistoryAlarmViewSet(viewsets.GenericViewSet):
             row_data = [
                 record.branch,
                 alarm_type_display.get(record.alarm_type, ''),
-                record.get_warning_level_display() if record.warning_level else '',
                 record.trigger_time.strftime('%Y-%m-%d %H:%M:%S') if record.trigger_time else '',
                 float(record.temperature),
                 float(record.temp_difference) if record.temp_difference is not None else '',
@@ -696,7 +695,7 @@ class HistoryAlarmViewSet(viewsets.GenericViewSet):
                 cell.border = thin_border
 
         # ── 列宽 ──
-        col_widths = [10, 14, 10, 22, 10, 10, 12, 14, 14, 10, 10, 10, 22, 12, 40]
+        col_widths = [10, 14, 22, 10, 10, 12, 14, 14, 10, 10, 10, 22, 12, 40]
         for col_idx, width in enumerate(col_widths, 1):
             ws.column_dimensions[ws.cell(row=1, column=col_idx).column_letter].width = width
 

@@ -40,10 +40,6 @@ class TemperatureRecord(models.Model):
         verbose_name = '温度历史记录'
         verbose_name_plural = verbose_name
         ordering = ['-timestamp']
-        indexes = [
-            models.Index(fields=['branch', 'timestamp']),
-            models.Index(fields=['timestamp']),
-        ]
 
     def __str__(self):
         return f"支路{self.branch} - {self.timestamp} - {self.max_temp}℃"
@@ -121,12 +117,6 @@ class AlarmRecord(models.Model):
         verbose_name = '告警记录'
         verbose_name_plural = verbose_name
         ordering = ['-timestamp']
-        indexes = [
-            models.Index(fields=['branch', 'timestamp']),
-            models.Index(fields=['alarm_type']),
-            models.Index(fields=['status']),
-            models.Index(fields=['timestamp']),
-        ]
 
     def __str__(self):
         return f"支路{self.branch} - {self.get_alarm_type_display()} - {self.timestamp}"

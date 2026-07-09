@@ -388,10 +388,13 @@ class DashboardStreamView(View):
     def _event_generator(self, client_id: str):
         """
         SSE 事件生成器
-        每个客户端拥有独立的消息队列，从 SSEManager 接收广播消息
+        status 主动轮询数据库 | image/alarm 从 MQTT 队列获取
         """
+        import time
         client_queue = queue.Queue(maxsize=256)
         sse_manager.register(client_id, client_queue)
+
+        last_status_time = 0
 
         try:
             # 发送连接成功事件
@@ -400,26 +403,28 @@ class DashboardStreamView(View):
                 'message': 'SSE 连接成功',
             }))
 
-            # 发送初始状态数据
-            try:
-                initial_data = DashboardService.get_realtime_status()
-                yield self._format_sse('status', json.dumps(initial_data, ensure_ascii=False))
-            except Exception as e:
-                logger.error(f'SSE 发送初始状态失败: {e}')
-
             # 事件循环
             while True:
+                now_ts = time.time()
+
+                # 每 5 秒主动轮询数据库最新状态
+                if now_ts - last_status_time >= 5:
+                    try:
+                        status_data = DashboardService.get_realtime_status()
+                        yield self._format_sse('status', json.dumps(status_data, ensure_ascii=False))
+                    except Exception:
+                        pass
+                    last_status_time = now_ts
+
+                # 从 MQTT 队列获取 image 和 alarm 事件（1 秒超时）
                 try:
-                    msg = client_queue.get(timeout=30)
-                    yield self._format_sse(msg['event'], msg['data'])
+                    msg = client_queue.get(timeout=1)
+                    if msg['event'] in ('image', 'alarm'):
+                        yield self._format_sse(msg['event'], msg['data'])
                 except queue.Empty:
-                    # 发送心跳，保持连接
-                    yield self._format_sse('heartbeat', json.dumps({
-                        'timestamp': timezone.localtime(timezone.now()).isoformat(),
-                    }))
+                    pass
 
         except GeneratorExit:
-            # 客户端断开连接
             pass
         except Exception as e:
             logger.error(f'SSE 事件生成器异常: {e}')

@@ -70,8 +70,19 @@ class LogService:
         end_time = LogService._safe_str(request.GET.get('end_time'))
         action_type = LogService._safe_str(request.GET.get('action_type'))
         branch = LogService._safe_int(request.GET.get('branch'), None)
-        filter_user_id = LogService._safe_int(request.GET.get('user_id'), None)
         maintenance_status = LogService._safe_str(request.GET.get('maintenance_status'))
+
+        # 操作人筛选：兼容 user_id / operator / operator_name 三种参数名
+        filter_user_id = LogService._safe_int(request.GET.get('user_id'), None)
+        if filter_user_id is None:
+            filter_user_id = LogService._safe_int(request.GET.get('operator'), None)
+        if filter_user_id is None:
+            operator_name = LogService._safe_str(request.GET.get('operator_name'))
+            if operator_name:
+                try:
+                    filter_user_id = User.objects.get(username=operator_name).id
+                except User.DoesNotExist:
+                    filter_user_id = -1  # 不存在的用户 → 查不到任何结果
 
         queryset = OperationLog.objects.all()
 

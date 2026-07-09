@@ -1,7 +1,10 @@
+from django.shortcuts import get_object_or_404
+
 from rest_framework.views import APIView
 from rest_framework.permissions import IsAuthenticated
 
 from apps.common.response import Result
+from .models import OperationLog, MaintenanceLog
 from .services import LogService
 from .serializers import (
     OperationLogSerializer,
@@ -29,7 +32,8 @@ class OperationLogListView(APIView):
             - end_time: 结束时间
             - action_type: 操作类型
             - branch: 支路编号
-            - operator_name: 操作人姓名（模糊匹配）
+            - user_id: 操作用户ID（精确匹配）
+            - maintenance_status: 维护状态（maintained/maintaining/unmaintained）
         """
         data = LogService.get_operation_logs(request, request.user)
 
@@ -53,7 +57,7 @@ class OperationLogCreateView(APIView):
         请求体（JSON）:
             - branch: integer, 必填, 支路编号（1-4）
             - action_type: string, 必填, remote_control/threshold_update/repair_device
-            - is_success: boolean, 必填, true=正常 false=异常
+            - maintenance_status: string, 必填, maintained/maintaining/unmaintained
             - action_detail: object, 可选, 详情JSON
         """
         serializer = CreateOperationLogSerializer(data=request.data)
@@ -62,6 +66,56 @@ class OperationLogCreateView(APIView):
 
         data = LogService.create_operation_log(request, request.user, serializer.validated_data)
         return Result.success(msg='操作日志创建成功', data=data, request=request)
+
+
+class OperationLogDetailView(APIView):
+    """
+    人员操作日志详情接口
+    GET /api/log/operation/<id>/
+    """
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, pk):
+        """
+        获取单条操作日志详情
+
+        返回字段：id, operator_name, branch, action_type,
+                 maintenance_status, maintenance_status_display,
+                 action_detail, images, detail, created_at
+        """
+        log = get_object_or_404(OperationLog, pk=pk)
+
+        # 权限隔离：非管理员只能查看自己的操作日志
+        if not request.user.is_superuser and log.user_id != request.user.id:
+            return Result.error(code=403, msg='无权限查看该操作日志', request=request)
+
+        serializer = OperationLogSerializer(log)
+        return Result.success(data=serializer.data, request=request)
+
+
+class MaintenanceLogDetailView(APIView):
+    """
+    故障处置日志详情接口
+    GET /api/log/fault/<id>/
+    """
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, pk):
+        """
+        获取单条故障处置日志详情
+
+        返回字段：id, fault_date, fault_time, fault_device,
+                 device_code, images, repairer_name,
+                 repair_detail, remark
+        """
+        log = get_object_or_404(MaintenanceLog, pk=pk)
+
+        # 权限隔离：非管理员只能查看自己的维修日志
+        if not request.user.is_superuser and log.user_id != request.user.id:
+            return Result.error(code=403, msg='无权限查看该处置日志', request=request)
+
+        serializer = MaintenanceLogSerializer(log)
+        return Result.success(data=serializer.data, request=request)
 
 
 class MaintenanceLogListView(APIView):
@@ -82,6 +136,7 @@ class MaintenanceLogListView(APIView):
             - end_time: 结束时间
             - fault_device: 故障设备类型
             - device_code: 支路编号
+            - user_id: 维修人员ID（精确匹配）
         """
         data = LogService.get_maintenance_logs(request, request.user)
 
@@ -107,6 +162,7 @@ class MaintenanceLogCreateView(APIView):
             - fault_device: string, 可选, 故障设备类型
             - repair_detail: string, 必填, 维修措施描述
             - repair_images: array, 可选, 图片URL数组
+            - remark: string, 可选, 备注信息
         """
         serializer = CreateMaintenanceLogSerializer(data=request.data)
         if not serializer.is_valid():

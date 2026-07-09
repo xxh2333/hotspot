@@ -82,6 +82,15 @@ DATABASES = {
     }
 }
 
+# OSS 配置（默认值，真实密钥放在 local_settings.py 中覆盖）
+# 开发阶段不配置时，自动回退返回原始图片路径
+OSS_CONFIG = {
+    'ACCESS_KEY_ID': '',
+    'ACCESS_KEY_SECRET': '',
+    'ENDPOINT': '',
+    'BUCKET_NAME': '',
+}
+
 # —— 本地配置覆盖（每个人的数据库密码等敏感信息）
 # 复制 local_settings.example.py → local_settings.py 并修改自己的配置
 # local_settings.py 已在 .gitignore 中，不会被提交

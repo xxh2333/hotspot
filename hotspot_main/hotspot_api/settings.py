@@ -149,3 +149,22 @@ STATIC_URL = 'static/'
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 AUTH_USER_MODEL = 'users.User'
+
+# ── 文件存储 ──
+MEDIA_URL = '/media/'
+MEDIA_ROOT = BASE_DIR / 'media'
+
+# ── 阿里云 OSS 配置（真实密钥放在 local_settings.py 中覆盖） ──
+# 开发阶段不配置时，OSS 上传自动跳过
+OSS_CONFIG = {
+    'ACCESS_KEY_ID': '',
+    'ACCESS_KEY_SECRET': '',
+    'ENDPOINT': '',
+    'BUCKET_NAME': '',
+}
+
+# 本地配置覆盖
+try:
+    from .local_settings import *  # noqa: F403
+except ImportError:
+    pass

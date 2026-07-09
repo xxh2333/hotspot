@@ -501,6 +501,21 @@ class AlarmService:
         now = timezone.now()
         auto_trip = alarm_type == 'hot_spot'  # 热斑告警自动分闸
 
+        # 如果没有传入 image_path，尝试关联最近的红外热像图
+        if not image_path:
+            recent_image = ThermalImage.objects.filter(
+                timestamp__gte=now - timedelta(seconds=60),
+            ).exclude(
+                image_path='',
+            ).order_by('-timestamp').first()
+
+            if recent_image:
+                image_path = recent_image.image_path
+                logger.info(
+                    f'告警 {alarm_type} 关联图像: {image_path} '
+                    f'(ThermalImage id={recent_image.id})'
+                )
+
         alarm = AlarmRecord.objects.create(
             branch=branch,
             alarm_type=alarm_type,
@@ -728,12 +743,48 @@ class MQTTDataProcessor:
         else:
             ts = timezone.now()
 
-        # 存储图像记录
+        # 存储图像记录（上传到 OSS + 本地备份）
+        from .oss_utils import (
+            upload_bytes_to_oss, generate_oss_key, save_image_locally,
+        )
+        import base64 as b64
+
+        oss_image_key = ''
+        oss_annotated_key = ''
+
+        # 处理原始红外图像
+        if image_b64:
+            try:
+                image_bytes = b64.b64decode(image_b64)
+                oss_key = generate_oss_key(device_id, ts, suffix='.jpg')
+                result = upload_bytes_to_oss(image_bytes, oss_key)
+                if result:
+                    oss_image_key = result
+                # 本地备份
+                local_ts = timezone.localtime(ts)
+                date_str = local_ts.strftime('%Y-%m-%d')
+                time_str = local_ts.strftime('%Y%m%d_%H%M%S')
+                local_rel_path = f'alarm_images/{device_id}/{date_str}/{time_str}_{device_id}.jpg'
+                save_image_locally(image_bytes, local_rel_path)
+            except Exception as e:
+                logger.error(f'处理原始红外图像失败: {e}')
+
+        # 处理标注图像
+        if annotated_b64:
+            try:
+                annotated_bytes = b64.b64decode(annotated_b64)
+                oss_ann_key = generate_oss_key(device_id, ts, suffix='_annotated.jpg')
+                result = upload_bytes_to_oss(annotated_bytes, oss_ann_key)
+                if result:
+                    oss_annotated_key = result
+            except Exception as e:
+                logger.error(f'处理标注图像失败: {e}')
+
         ThermalImage.objects.create(
             timestamp=ts,
             device_id=device_id,
-            image_path='',  # Base64 数据不存文件路径，直接通过 SSE 推送
-            annotated_path='',
+            image_path=oss_image_key,
+            annotated_path=oss_annotated_key,
             width=width,
             height=height,
             hotspots=hotspots,

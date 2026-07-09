@@ -70,8 +70,8 @@ class LogService:
         end_time = LogService._safe_str(request.GET.get('end_time'))
         action_type = LogService._safe_str(request.GET.get('action_type'))
         branch = LogService._safe_int(request.GET.get('branch'), None)
-        operator_name = LogService._safe_str(request.GET.get('operator_name'))
-        is_success = LogService._safe_bool(request.GET.get('is_success'))
+        filter_user_id = LogService._safe_int(request.GET.get('user_id'), None)
+        maintenance_status = LogService._safe_str(request.GET.get('maintenance_status'))
 
         queryset = OperationLog.objects.all()
 
@@ -87,14 +87,10 @@ class LogService:
             queryset = queryset.filter(action_type=action_type)
         if branch is not None:
             queryset = queryset.filter(branch=branch)
-        if operator_name:
-            # 模糊匹配用户名
-            user_ids = User.objects.filter(
-                username__icontains=operator_name
-            ).values_list('id', flat=True)
-            queryset = queryset.filter(user_id__in=user_ids)
-        if is_success is not None:
-            queryset = queryset.filter(is_success=is_success)
+        if filter_user_id is not None:
+            queryset = queryset.filter(user_id=filter_user_id)
+        if maintenance_status:
+            queryset = queryset.filter(maintenance_status=maintenance_status)
 
         queryset = queryset.order_by('-created_at')
 
@@ -126,6 +122,7 @@ class LogService:
         end_time = LogService._safe_str(request.GET.get('end_time'))
         fault_device = LogService._safe_str(request.GET.get('fault_device'))
         device_code = LogService._safe_str(request.GET.get('device_code'))
+        filter_user_id = LogService._safe_int(request.GET.get('user_id'), None)
 
         queryset = MaintenanceLog.objects.all()
 
@@ -143,6 +140,8 @@ class LogService:
             # 通过关联告警的 branch 筛选
             alarm_ids = AlarmLog.objects.filter(branch=device_code).values_list('id', flat=True)
             queryset = queryset.filter(alarm_id__in=alarm_ids)
+        if filter_user_id is not None:
+            queryset = queryset.filter(user_id=filter_user_id)
 
         queryset = queryset.order_by('-created_at')
 
@@ -173,7 +172,7 @@ class LogService:
             user_id=user.id,
             branch=validated_data['branch'],
             action_type=validated_data['action_type'],
-            is_success=validated_data['is_success'],
+            maintenance_status=validated_data['maintenance_status'],
             action_detail=validated_data.get('action_detail'),
             ip_address=request.META.get('REMOTE_ADDR'),
             user_agent=request.META.get('HTTP_USER_AGENT'),
@@ -183,7 +182,7 @@ class LogService:
             'user_id': operation_log.user_id,
             'branch': operation_log.branch,
             'action_type': operation_log.action_type,
-            'is_success': operation_log.is_success,
+            'maintenance_status': operation_log.maintenance_status,
             'action_detail': operation_log.action_detail,
             'created_at': operation_log.created_at.strftime('%Y-%m-%d %H:%M:%S'),
         }
@@ -209,6 +208,7 @@ class LogService:
             fault_device=validated_data.get('fault_device', ''),
             repair_detail=validated_data['repair_detail'],
             repair_images=validated_data.get('repair_images', []),
+            remark=validated_data.get('remark', ''),
         )
         return {
             'id': maintenance_log.id,
@@ -217,6 +217,7 @@ class LogService:
             'fault_device': maintenance_log.fault_device,
             'repair_detail': maintenance_log.repair_detail,
             'repair_images': maintenance_log.repair_images,
+            'remark': maintenance_log.remark,
             'created_at': maintenance_log.created_at.strftime('%Y-%m-%d %H:%M:%S'),
         }
 
@@ -269,6 +270,36 @@ class LogService:
         return {'url': f'/media/{relative_path}'}
 
     @staticmethod
+    def upload_to_oss(file_bytes: bytes, object_key: str) -> str:
+        """
+        上传文件到阿里云 OSS，返回 OSS object key。
+
+        Args:
+            file_bytes: 文件字节数据
+            object_key: OSS 对象键，如 'alarm_images/1/2026-07-06/xxx.jpg'
+
+        Returns:
+            str: 上传成功的 OSS object key
+
+        Raises:
+            ValueError: OSS 配置缺失
+            RuntimeError: 上传失败
+        """
+        oss_config = getattr(settings, 'OSS_CONFIG', None)
+        if not oss_config or not oss_config.get('ACCESS_KEY_ID'):
+            raise ValueError('OSS_CONFIG 未配置，无法上传')
+
+        import oss2
+        auth = oss2.Auth(oss_config['ACCESS_KEY_ID'], oss_config['ACCESS_KEY_SECRET'])
+        bucket = oss2.Bucket(auth, oss_config['ENDPOINT'], oss_config['BUCKET_NAME'])
+
+        result = bucket.put_object(object_key, BytesIO(file_bytes))
+        if result.status != 200:
+            raise RuntimeError(f'OSS 上传失败，状态码: {result.status}')
+
+        return object_key
+
+    @staticmethod
     def export_logs_to_excel(request, user, log_type, start_time, end_time):
         """
         导出日志为 Excel 文件
@@ -310,7 +341,8 @@ class LogService:
                 ws.cell(row=row_idx, column=2, value=log.created_at.strftime('%H:%M:%S') if log.created_at else '')
                 ws.cell(row=row_idx, column=4, value=log.branch or '')
                 ws.cell(row=row_idx, column=5, value=log.get_action_type_display())
-                ws.cell(row=row_idx, column=6, value='正常' if log.is_success else '异常')
+                status_map = {'maintained': '已维护', 'maintaining': '维护中', 'unmaintained': '未维护'}
+                ws.cell(row=row_idx, column=6, value=status_map.get(log.maintenance_status, log.maintenance_status))
                 ws.cell(row=row_idx, column=7, value=str(log.action_detail) if log.action_detail else '')
 
                 try:
@@ -350,7 +382,7 @@ class LogService:
                 ws.cell(row=row_idx, column=1, value=log.created_at.strftime('%Y-%m-%d') if log.created_at else '')
                 ws.cell(row=row_idx, column=2, value=log.created_at.strftime('%H:%M:%S') if log.created_at else '')
                 ws.cell(row=row_idx, column=3, value=log.fault_device or '')
-                ws.cell(row=row_idx, column=6, value=log.repair_detail or '')
+                ws.cell(row=row_idx, column=6, value=log.remark or '')
                 ws.cell(row=row_idx, column=7, value=str(log.repair_images) if log.repair_images else '')
 
                 alarm = alarm_map.get(log.alarm_id)

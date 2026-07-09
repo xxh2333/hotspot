@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 import time
 from datetime import datetime
 from io import BytesIO
@@ -109,7 +110,8 @@ class HistoryTemperatureViewSet(viewsets.GenericViewSet):
     ABNORMAL_AREA_THRESHOLD = 10.0   # %
 
     def _build_temperature_queryset(self, start_dt, end_dt, branch=None,
-                                     min_temp=None, max_temp=None, status=None):
+                                     min_temp=None, max_temp=None, status=None,
+                                     keyword=None):
         """构建温度查询过滤条件"""
         qs = TemperatureRecord.objects.filter(
             timestamp__gte=start_dt,
@@ -127,6 +129,12 @@ class HistoryTemperatureViewSet(viewsets.GenericViewSet):
                 qs = qs.filter(abnormal_q)
             elif status == 'normal':
                 qs = qs.exclude(abnormal_q)
+        if keyword is not None:
+            try:
+                keyword_int = int(keyword)
+                qs = qs.filter(Q(id=keyword_int) | Q(branch=keyword_int))
+            except (TypeError, ValueError):
+                pass  # 非数字 keyword 不匹配任何记录
         return qs.order_by('-timestamp')
 
     # ──────────────────────────────────────────
@@ -136,8 +144,9 @@ class HistoryTemperatureViewSet(viewsets.GenericViewSet):
         """
         GET /api/history/temperature/
         必填: start_time, end_time
-        可选: branch, min_temp, max_temp, status, page, size
+        可选: branch, min_temp, max_temp, status, keyword, page, size
         status: 正常 / 异常（筛选温度记录状态）
+        keyword: 按记录 ID 或支路编号精确匹配（传入数字）
         """
         start_time = request.query_params.get('start_time')
         end_time = request.query_params.get('end_time')
@@ -176,8 +185,10 @@ class HistoryTemperatureViewSet(viewsets.GenericViewSet):
             else:
                 return Result.error(code=400, msg='status 参数无效，可选: 正常 / 异常')
 
+        keyword = request.query_params.get('keyword')
+
         queryset = self._build_temperature_queryset(
-            start_dt, end_dt, branch, min_temp, max_temp, status,
+            start_dt, end_dt, branch, min_temp, max_temp, status, keyword,
         )
 
         page = self.paginate_queryset(queryset)
@@ -189,7 +200,68 @@ class HistoryTemperatureViewSet(viewsets.GenericViewSet):
         return Result.success(data={'total': queryset.count(), 'list': serializer.data})
 
     # ──────────────────────────────────────────
-    # 3.2 温度历史导出（仅管理员）
+    # 3.2 温度统计汇总
+    # ──────────────────────────────────────────
+    @action(detail=False, methods=['get'], url_path='summary')
+    def summary(self, request):
+        """
+        GET /history/temperature/summary/
+        温度统计汇总，返回筛选条件下的全量统计（不翻页）。
+        必填: start_time, end_time
+        可选: branch, status
+        """
+        start_time = request.query_params.get('start_time')
+        end_time = request.query_params.get('end_time')
+
+        (start_dt, end_dt), err = _validate_time_range(start_time, end_time)
+        if err:
+            return err
+
+        branch = request.query_params.get('branch')
+        if branch is not None:
+            try:
+                branch = int(branch)
+            except (TypeError, ValueError):
+                return Result.error(code=400, msg='branch 参数格式错误')
+
+        status = request.query_params.get('status')
+        if status is not None:
+            if status == '正常':
+                status = 'normal'
+            elif status == '异常':
+                status = 'abnormal'
+            else:
+                return Result.error(code=400, msg='status 参数无效，可选: 正常 / 异常')
+
+        queryset = self._build_temperature_queryset(start_dt, end_dt, branch, status=status)
+
+        total = queryset.count()
+        if total == 0:
+            return Result.success(data={
+                'total': 0,
+                'avg_temp': 0.0,
+                'max_temp': 0.0,
+                'abnormal_count': 0,
+            })
+
+        from django.db.models import Avg, Max
+        agg = queryset.aggregate(
+            avg_temp=Avg('avg_temp'),
+            max_temp=Max('max_temp'),
+        )
+
+        abnormal_q = Q(max_temp__gte=self.ABNORMAL_TEMP_THRESHOLD) | Q(area_ratio__gte=self.ABNORMAL_AREA_THRESHOLD)
+        abnormal_count = queryset.filter(abnormal_q).count()
+
+        return Result.success(data={
+            'total': total,
+            'avg_temp': round(float(agg['avg_temp'] or 0), 2),
+            'max_temp': float(agg['max_temp'] or 0),
+            'abnormal_count': abnormal_count,
+        })
+
+    # ──────────────────────────────────────────
+    # 3.3 温度历史导出（仅管理员）
     # ──────────────────────────────────────────
     @action(detail=False, methods=['post'], url_path='export')
     def export(self, request):
@@ -305,9 +377,10 @@ class HistoryTemperatureViewSet(viewsets.GenericViewSet):
 class HistoryAlarmViewSet(viewsets.GenericViewSet):
     """
     告警历史记录接口
-    - GET  /api/history/alarm/            → 分页查询
+    - GET  /api/history/alarm/              → 分页查询
     - GET  /api/history/alarm/{id}/presign/ → OSS 预签名 URL
-    - POST /api/history/alarm/export/     → Excel 导出（仅管理员）
+    - POST /api/history/alarm/upload-image/ → 补偿上传故障图片到 OSS
+    - POST /api/history/alarm/export/       → Excel 导出（仅管理员）
     """
     permission_classes = [IsAuthenticated]
     pagination_class = HistoryPagination
@@ -332,10 +405,13 @@ class HistoryAlarmViewSet(viewsets.GenericViewSet):
         """
         批量查询维修记录，返回 {alarm_id: MaintenanceLog} 映射。
         避免在 serializer 中逐条查询（N+1 问题）。
+        使用 .only() 避免因数据库迁移滞后导致的缺失列错误。
         """
         if not alarm_ids:
             return {}
-        maintenances = MaintenanceLog.objects.filter(alarm_id__in=alarm_ids)
+        maintenances = MaintenanceLog.objects.only(
+            'alarm_id', 'id', 'user_id', 'repair_detail', 'repair_images',
+        ).filter(alarm_id__in=alarm_ids)
         return {m.alarm_id: m for m in maintenances}
 
     # ──────────────────────────────────────────
@@ -448,7 +524,87 @@ class HistoryAlarmViewSet(viewsets.GenericViewSet):
             return None
 
     # ──────────────────────────────────────────
-    # 3.5 告警历史导出（仅管理员）
+    # 3.5 补偿上传 — 为指定告警记录上传故障图片到 OSS
+    # ──────────────────────────────────────────
+    @action(detail=False, methods=['post'], url_path='upload-image')
+    def upload_alarm_image(self, request):
+        """
+        POST /api/history/alarm/upload-image/
+        补偿上传：为指定告警记录上传故障图片到 OSS 并更新 image_path。
+
+        请求体 (multipart/form-data):
+            - alarm_id: int, 必填, 告警记录 ID
+            - image: File, 必填, 图片文件 (jpg/png/webp, ≤5MB)
+            - image_type: str, 可选, 'original'(默认) 或 'annotated'
+        """
+        alarm_id = request.POST.get('alarm_id')
+        image_file = request.FILES.get('image')
+        image_type = request.POST.get('image_type', 'original')
+
+        # 参数校验
+        if not alarm_id:
+            return Result.error(code=400, msg='缺少必填参数: alarm_id')
+        if not image_file:
+            return Result.error(code=400, msg='未上传图片文件')
+        try:
+            alarm_id = int(alarm_id)
+        except (ValueError, TypeError):
+            return Result.error(code=400, msg='alarm_id 格式错误')
+
+        try:
+            alarm = AlarmRecord.objects.get(pk=alarm_id)
+        except AlarmRecord.DoesNotExist:
+            return Result.error(code=404, msg=f'告警记录不存在: id={alarm_id}')
+
+        # 文件校验
+        ext = os.path.splitext(image_file.name)[1].lower()
+        allowed_exts = {'.jpg', '.jpeg', '.png', '.webp'}
+        if ext not in allowed_exts:
+            return Result.error(code=400, msg=f'不支持的图片格式：{ext}，仅支持 jpg/png/webp')
+        if image_file.size > 5 * 1024 * 1024:
+            return Result.error(code=400, msg='图片大小不能超过 5MB')
+
+        # 读取文件字节
+        image_bytes = image_file.read()
+
+        # 生成 OSS object key
+        from django.utils import timezone as tz
+        now = tz.now()
+        date_str = now.strftime('%Y-%m-%d')
+        time_str = now.strftime('%Y%m%d_%H%M%S')
+        branch = alarm.branch
+        suffix = '_annotated' if image_type == 'annotated' else ''
+        object_key = f'alarm_images/{branch}/{date_str}/{alarm_id}_{time_str}{suffix}{ext}'
+
+        # 上传到 OSS
+        try:
+            from apps.logs.services import LogService
+            uploaded_key = LogService.upload_to_oss(image_bytes, object_key)
+        except ValueError as e:
+            return Result.error(code=500, msg=str(e))
+        except RuntimeError as e:
+            return Result.error(code=500, msg=str(e))
+
+        # 更新告警记录的 image_path
+        if image_type == 'annotated':
+            alarm.annotated_image_path = uploaded_key
+            alarm.save(update_fields=['annotated_image_path', 'updated_at'])
+        else:
+            alarm.image_path = uploaded_key
+            alarm.save(update_fields=['image_path', 'updated_at'])
+
+        logger.info(f'告警 {alarm_id} 的 {image_type} 图片已补偿上传: {uploaded_key}')
+        return Result.success(
+            msg='图片上传成功',
+            data={
+                'alarm_id': alarm.id,
+                'object_key': uploaded_key,
+                'image_type': image_type,
+            },
+        )
+
+    # ──────────────────────────────────────────
+    # 3.6 告警历史导出（仅管理员）
     # ──────────────────────────────────────────
     @action(detail=False, methods=['post'], url_path='export')
     def export_alarm(self, request):

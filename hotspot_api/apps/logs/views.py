@@ -1,7 +1,10 @@
+from django.shortcuts import get_object_or_404
+
 from rest_framework.views import APIView
 from rest_framework.permissions import IsAuthenticated
 
 from apps.common.response import Result
+from .models import OperationLog, MaintenanceLog
 from .services import LogService
 from .serializers import (
     OperationLogSerializer,
@@ -63,6 +66,56 @@ class OperationLogCreateView(APIView):
 
         data = LogService.create_operation_log(request, request.user, serializer.validated_data)
         return Result.success(msg='操作日志创建成功', data=data, request=request)
+
+
+class OperationLogDetailView(APIView):
+    """
+    人员操作日志详情接口
+    GET /api/log/operation/<id>/
+    """
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, pk):
+        """
+        获取单条操作日志详情
+
+        返回字段：id, operator_name, branch, action_type,
+                 maintenance_status, maintenance_status_display,
+                 action_detail, images, detail, created_at
+        """
+        log = get_object_or_404(OperationLog, pk=pk)
+
+        # 权限隔离：非管理员只能查看自己的操作日志
+        if not request.user.is_superuser and log.user_id != request.user.id:
+            return Result.error(code=403, msg='无权限查看该操作日志', request=request)
+
+        serializer = OperationLogSerializer(log)
+        return Result.success(data=serializer.data, request=request)
+
+
+class MaintenanceLogDetailView(APIView):
+    """
+    故障处置日志详情接口
+    GET /api/log/fault/<id>/
+    """
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, pk):
+        """
+        获取单条故障处置日志详情
+
+        返回字段：id, fault_date, fault_time, fault_device,
+                 device_code, images, repairer_name,
+                 repair_detail, remark
+        """
+        log = get_object_or_404(MaintenanceLog, pk=pk)
+
+        # 权限隔离：非管理员只能查看自己的维修日志
+        if not request.user.is_superuser and log.user_id != request.user.id:
+            return Result.error(code=403, msg='无权限查看该处置日志', request=request)
+
+        serializer = MaintenanceLogSerializer(log)
+        return Result.success(data=serializer.data, request=request)
 
 
 class MaintenanceLogListView(APIView):

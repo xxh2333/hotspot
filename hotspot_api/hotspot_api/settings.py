@@ -73,8 +73,8 @@ DATABASES = {
         'ENGINE': 'django.db.backends.mysql',
         'NAME': 'hotspot_db',
         'USER': 'root',
-        'PASSWORD': '123456',
-        'HOST': 'localhost',
+        'PASSWORD': 'Hotspot@123',
+        'HOST': '111.228.56.207',
         'PORT': '3306',
         'OPTIONS': {
             'charset': 'utf8mb4',

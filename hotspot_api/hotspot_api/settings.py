@@ -71,11 +71,11 @@ WSGI_APPLICATION = 'hotspot_api.wsgi.application'
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.mysql',
-        'NAME': 'hotspot_db',
-        'USER': 'root',
-        'PASSWORD': 'Hotspot@123',
-        'HOST': '111.228.56.207',
-        'PORT': '3306',
+        'NAME': '',
+        'USER': '',
+        'PASSWORD': '',
+        'HOST': '',
+        'PORT': '',
         'OPTIONS': {
             'charset': 'utf8mb4',
         },

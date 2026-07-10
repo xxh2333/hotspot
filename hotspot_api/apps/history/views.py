@@ -366,6 +366,7 @@ class HistoryAlarmViewSet(viewsets.GenericViewSet):
     """
     告警历史记录接口
     - GET  /api/history/alarm/              → 分页查询
+    - GET  /api/history/alarm/summary/      → 统计汇总
     - GET  /api/history/alarm/{id}/presign/ → OSS 预签名 URL
     - POST /api/history/alarm/upload-image/ → 补偿上传故障图片到 OSS
     - POST /api/history/alarm/export/       → Excel 导出（仅管理员）
@@ -464,7 +465,79 @@ class HistoryAlarmViewSet(viewsets.GenericViewSet):
         return Result.success(data={'total': queryset.count(), 'list': serializer.data})
 
     # ──────────────────────────────────────────
-    # 3.4 故障原图预签名 URL
+    # 3.4 告警统计汇总
+    # ──────────────────────────────────────────
+    @action(detail=False, methods=['get'], url_path='summary')
+    def summary(self, request):
+        """
+        GET /api/history/alarm/summary/
+        告警统计汇总，返回筛选条件下的全量统计（不翻页）。
+        必填: start_time, end_time
+        可选: branch, alarm_type, status, keyword
+        """
+        start_time = request.query_params.get('start_time')
+        end_time = request.query_params.get('end_time')
+
+        (start_dt, end_dt), err = _validate_time_range(start_time, end_time)
+        if err:
+            return err
+
+        branch = request.query_params.get('branch')
+        if branch is not None:
+            try:
+                branch = int(branch)
+            except (TypeError, ValueError):
+                return Result.error(code=400, msg='branch 参数格式错误')
+
+        alarm_type = request.query_params.get('alarm_type')
+        if alarm_type is not None:
+            valid_types = {'hot_spot', 'over_temp', 'offline'}
+            if alarm_type not in valid_types:
+                return Result.error(code=400, msg='alarm_type 无效，可选: hot_spot/over_temp/offline')
+
+        status = request.query_params.get('status')
+        if status and status not in ('pending', 'resolved', 'recovering'):
+            return Result.error(code=400, msg='status 参数无效，可选: pending/resolved/recovering')
+
+        keyword = request.query_params.get('keyword')
+
+        queryset = self._build_alarm_queryset(
+            start_dt, end_dt, branch, alarm_type, status, keyword,
+        )
+
+        total = queryset.count()
+        if total == 0:
+            return Result.success(data={
+                'total': 0,
+                'hot_spot_count': 0,
+                'over_temp_count': 0,
+                'offline_count': 0,
+                'pending_count': 0,
+                'resolved_count': 0,
+                'recovering_count': 0,
+            })
+
+        from django.db.models import Count
+
+        # 清除排序，避免 values().annotate() 的 GROUP BY 受 order_by 影响
+        type_counts = queryset.order_by().values('alarm_type').annotate(cnt=Count('id'))
+        status_counts = queryset.order_by().values('status').annotate(cnt=Count('id'))
+
+        type_map = {item['alarm_type']: item['cnt'] for item in type_counts}
+        status_map = {item['status']: item['cnt'] for item in status_counts}
+
+        return Result.success(data={
+            'total': total,
+            'hot_spot_count': type_map.get('hot_spot', 0),
+            'over_temp_count': type_map.get('over_temp', 0),
+            'offline_count': type_map.get('offline', 0),
+            'pending_count': status_map.get('pending', 0),
+            'resolved_count': status_map.get('resolved', 0),
+            'recovering_count': status_map.get('recovering', 0),
+        })
+
+    # ──────────────────────────────────────────
+    # 3.5 故障原图预签名 URL
     # ──────────────────────────────────────────
     @action(detail=True, methods=['get'], url_path='presign')
     def presign(self, request, pk=None):

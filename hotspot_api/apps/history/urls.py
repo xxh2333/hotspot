@@ -7,6 +7,7 @@ temperature_summary = HistoryTemperatureViewSet.as_view({'get': 'summary'})
 temperature_export = HistoryTemperatureViewSet.as_view({'post': 'export'})
 
 alarm_list = HistoryAlarmViewSet.as_view({'get': 'list'})
+alarm_summary = HistoryAlarmViewSet.as_view({'get': 'summary'})
 alarm_presign = HistoryAlarmViewSet.as_view({'get': 'presign'})
 alarm_upload_image = HistoryAlarmViewSet.as_view({'post': 'upload_alarm_image'})
 alarm_export = HistoryAlarmViewSet.as_view({'post': 'export_alarm'})
@@ -22,7 +23,9 @@ urlpatterns = [
     #path('history/temperature/stream/', TemperatureStreamView.as_view(), name='history-temperature-stream'),
     # 3.4 历史告警查询
     path('history/alarm/', alarm_list, name='history-alarm-list'),
-    # 3.5 故障原图预签名URL
+    # 3.5 告警统计汇总
+    path('history/alarm/summary/', alarm_summary, name='history-alarm-summary'),
+    # 3.6 故障原图预签名URL
     path('history/alarm/<int:pk>/presign/', alarm_presign, name='history-alarm-presign'),
     # 3.6 补偿上传 — 为指定告警记录上传故障图片到 OSS
     #path('history/alarm/upload-image/', alarm_upload_image, name='history-alarm-upload-image'),

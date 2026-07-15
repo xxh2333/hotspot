@@ -8,19 +8,19 @@
     256
   ],
   "best_metrics": {
-    "best_val_loss": 0.5624899451549237,
-    "best_val_loss_epoch": 2.0,
-    "best_val_iou": 0.6631269333379427,
-    "best_val_iou_epoch": 2.0,
-    "best_val_dice": 0.7929778212001437,
-    "best_val_dice_epoch": 2.0,
-    "best_val_acc": 0.9731226211912449,
-    "best_val_acc_epoch": 2.0,
-    "best_val_precision": 0.7890405521735856,
-    "best_val_precision_epoch": 2.0,
-    "best_val_recall": 0.8014371961686233,
-    "best_val_recall_epoch": 2.0
+    "best_val_loss": 0.09937530755996704,
+    "best_val_loss_epoch": 45.0,
+    "best_val_iou": 0.8023660274236784,
+    "best_val_iou_epoch": 45.0,
+    "best_val_dice": 0.8872276431427621,
+    "best_val_dice_epoch": 45.0,
+    "best_val_acc": 0.9862524179284888,
+    "best_val_acc_epoch": 45.0,
+    "best_val_precision": 0.9972987998269781,
+    "best_val_precision_epoch": 42.0,
+    "best_val_recall": 0.8726888316330543,
+    "best_val_recall_epoch": 50.0
   },
-  "training_time_seconds": 689.2,
-  "total_epochs": 2
+  "training_time_seconds": 12929.8,
+  "total_epochs": 50
 }

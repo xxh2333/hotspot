@@ -1,0 +1,26 @@
+{
+  "framework": "PyTorch",
+  "architecture": "UNet",
+  "parameters": 9416225,
+  "input_size": [
+    1,
+    192,
+    256
+  ],
+  "best_metrics": {
+    "best_val_loss": 0.5624899451549237,
+    "best_val_loss_epoch": 2.0,
+    "best_val_iou": 0.6631269333379427,
+    "best_val_iou_epoch": 2.0,
+    "best_val_dice": 0.7929778212001437,
+    "best_val_dice_epoch": 2.0,
+    "best_val_acc": 0.9731226211912449,
+    "best_val_acc_epoch": 2.0,
+    "best_val_precision": 0.7890405521735856,
+    "best_val_precision_epoch": 2.0,
+    "best_val_recall": 0.8014371961686233,
+    "best_val_recall_epoch": 2.0
+  },
+  "training_time_seconds": 689.2,
+  "total_epochs": 2
+}

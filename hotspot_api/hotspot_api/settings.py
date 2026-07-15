@@ -34,6 +34,7 @@ INSTALLED_APPS = [
     'apps.trend_chart',
     'apps.history',
     'apps.monitor',
+    'apps.ai',
 ]
 
 MIDDLEWARE = [

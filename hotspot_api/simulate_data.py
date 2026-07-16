@@ -221,8 +221,8 @@ def main():
                 print('[状态 #{}] {}'.format(count_status, ', '.join(parts)))
                 last_status_time = now_ts
 
-            # 每 1 秒发送红外图像
-            if now_ts - last_image_time >= 1:
+            # 每 5 分钟发送红外图像
+            if now_ts - last_image_time >= 300:
                 if status_payload:
                     image_payload = generate_image_data(status_payload)
                 else:

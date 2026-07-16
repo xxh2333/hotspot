@@ -687,6 +687,14 @@ class MQTTDataProcessor:
             if alarm_data:
                 # 通过 SSE 广播告警
                 sse_manager.broadcast('alarm', json.dumps(alarm_data, ensure_ascii=False))
+                # 同时广播 MQTT 消息日志
+                _broadcast_mqtt_log('pv/hotspot/up/status', {
+                    'type': 'alarm',
+                    'alarm_type': alarm_data['alarm_type'],
+                    'branch': alarm_data['branch'],
+                    'temperature': alarm_data['temperature'],
+                    'description': alarm_data['description'],
+                })
 
         # 更新设备状态
         DeviceStatus.objects.update_or_create(
@@ -708,6 +716,16 @@ class MQTTDataProcessor:
         # 通过 SSE 广播实时状态
         status_data = DashboardService.get_realtime_status()
         sse_manager.broadcast('status', json.dumps(status_data, ensure_ascii=False))
+
+        # 广播 MQTT 消息日志（前端日志面板消费）
+        _broadcast_mqtt_log('pv/hotspot/up/status', {
+            'type': 'status',
+            'device_id': device_id,
+            'branches': [
+                {'id': b['id'], 'temperature': b['temperature'], 'area_ratio': b.get('area_ratio', 0)}
+                for b in branches
+            ],
+        })
 
     @staticmethod
     def process_image(data: dict):
@@ -800,6 +818,15 @@ class MQTTDataProcessor:
         }
         sse_manager.broadcast('image', json.dumps(image_event, ensure_ascii=False))
 
+        # 广播 MQTT 消息日志
+        _broadcast_mqtt_log('pv/hotspot/up/image', {
+            'type': 'image',
+            'device_id': device_id,
+            'width': width,
+            'height': height,
+            'hotspots_count': len(hotspots),
+        })
+
     @staticmethod
     def handle_device_offline(device_id: str):
         """
@@ -830,3 +857,19 @@ class MQTTDataProcessor:
         # SSE 广播设备离线状态
         status_data = DashboardService.get_realtime_status()
         sse_manager.broadcast('status', json.dumps(status_data, ensure_ascii=False))
+
+
+# ============================================================================
+# MQTT 消息日志广播（供前端 MQTT 可视化面板消费）
+# ============================================================================
+
+def _broadcast_mqtt_log(topic: str, summary: dict):
+    """把 MQTT 消息摘要作为 mqtt 事件广播到所有 SSE 客户端"""
+    from django.utils import timezone
+
+    log_entry = {
+        'timestamp': timezone.localtime(timezone.now()).isoformat(),
+        'topic': topic,
+        'summary': summary,
+    }
+    sse_manager.broadcast('mqtt', json.dumps(log_entry, ensure_ascii=False))

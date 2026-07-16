@@ -29,6 +29,7 @@ urlpatterns = [
     path('api/log/', include('apps.logs.urls')),
     path('api/', include('apps.history.urls')),
     path('api/', include('apps.monitor.urls')),
+    path('api/', include('apps.ai.urls')),
 ]
 
 if settings.DEBUG:
